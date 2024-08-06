@@ -266,11 +266,11 @@
 			]
 		},
 		"contracts/MultiSig.sol": {
-			"keccak256": "0x48d29ab53804c6269b63d9b44d4220973c373a2a8075ad2b45defbec61c61cb9",
+			"keccak256": "0x8e85a46b1d4a3e752abdea9a6575e0ab2f04f74552f02279c03aa314de30eb7e",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://e2b85d745b1852bbe80be11c85ed19a00fec9a19d8182d0895100ceedffbcda0",
-				"dweb:/ipfs/Qmd6GMgG4jgx5YthpwsCZ8L5ABLxUtFXCJ5SebmA1mbZij"
+				"bzz-raw://9afa6e7d9daa49da925a3427a1e2a953ce2e1fbcf9d58d244d3ec2ccbf07cca8",
+				"dweb:/ipfs/QmQLZMgBkLqtxWfGiXm7YCduFsxBB9ggNUeuisbPpeVrGG"
 			]
 		}
 	},

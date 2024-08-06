@@ -1,0 +1,45 @@
+{
+	"compiler": {
+		"version": "0.8.26+commit.8a97fa7a"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"contracts/BaseConstantsEntities.sol": "BaseConstantsEntities"
+		},
+		"evmVersion": "cancun",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"contracts/BaseConstantsEntities.sol": {
+			"keccak256": "0x6c365c94b8a63b6450d7d8eee0c4da4e5f4e9ea63417ee2336fb3426abab51e8",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://a4d01a6ca529d20f6770eee3890b738d078cc1fa68251855d67d18883870dc1c",
+				"dweb:/ipfs/QmYz1cXWnZatJQb51JDtcC41yqBgY6QJEXWJeL7tw6WP7a"
+			]
+		}
+	},
+	"version": 1
+}

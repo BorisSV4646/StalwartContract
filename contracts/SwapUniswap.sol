@@ -7,17 +7,25 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 contract SwapUniswap {
     ISwapRouter public immutable swapRouter;
 
-    enum StableType {DAI, USDT, USDC }
+    enum StableType {
+        DAI,
+        USDT,
+        USDC
+    }
 
     address public immutable DAI;
     address public immutable USDT;
     address public immutable USDC;
     address public constant WETH9 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
- 
 
     uint24 public constant poolFee = 3000;
 
-    constructor(ISwapRouter _swapRouter, address _dai, address _usdt, address _usdc) {
+    constructor(
+        ISwapRouter _swapRouter,
+        address _dai,
+        address _usdt,
+        address _usdc
+    ) {
         swapRouter = _swapRouter;
         DAI = _dai;
         USDT = _usdt;
@@ -53,44 +61,42 @@ contract SwapUniswap {
         amountOut = swapRouter.exactInput(params);
     }
 
-    /// @notice swapExactOutputMultihop swaps a minimum possible amount of DAI for a fixed amount of WETH through an intermediary pool.
-    /// For this example, we want to swap DAI for WETH9 through a USDC pool but we specify the desired amountOut of WETH9. Notice how the path encoding is slightly different in for exact output swaps.
-    /// @dev The calling address must approve this contract to spend its DAI for this function to succeed. As the amount of input DAI is variable,
-    /// the calling address will need to approve for a slightly higher amount, anticipating some variance.
-    /// @param amountOut The desired amount of WETH9.
-    /// @param amountInMaximum The maximum amount of DAI willing to be swapped for the specified amountOut of WETH9.
-    /// @return amountIn The amountIn of DAI actually spent to receive the desired amountOut.
-    function swapExactOutputMultihop(
-        uint256 amountOut,
-        uint256 amountInMaximum
-    ) external returns (uint256 amountIn) {
+    /// @notice swapExactInputSingle swaps a fixed amount of DAI for a maximum possible amount of WETH9
+    /// using the DAI/WETH9 0.3% pool by calling `exactInputSingle` in the swap router.
+    /// @dev The calling address must approve this contract to spend at least `amountIn` worth of its DAI for this function to succeed.
+    /// @param amountIn The exact amount of DAI that will be swapped for WETH9.
+    /// @return amountOut The amount of WETH9 received.
+    function swapExactInputSingle(
+        uint256 amountIn
+    ) external returns (uint256 amountOut) {
+        // msg.sender must approve this contract
+
+        // Transfer the specified amount of DAI to this contract.
         TransferHelper.safeTransferFrom(
             DAI,
             msg.sender,
             address(this),
-            amountInMaximum
+            amountIn
         );
-        TransferHelper.safeApprove(DAI, address(swapRouter), amountInMaximum);
 
-        ISwapRouter.ExactOutputParams memory params = ISwapRouter
-            .ExactOutputParams({
-                path: abi.encodePacked(WETH9, poolFee, USDC, poolFee, DAI),
+        // Approve the router to spend DAI.
+        TransferHelper.safeApprove(DAI, address(swapRouter), amountIn);
+
+        // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
+        // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount.
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
+            .ExactInputSingleParams({
+                tokenIn: DAI,
+                tokenOut: WETH9,
+                fee: poolFee,
                 recipient: msg.sender,
                 deadline: block.timestamp,
-                amountOut: amountOut,
-                amountInMaximum: amountInMaximum
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
             });
 
-        amountIn = swapRouter.exactOutput(params);
-
-        if (amountIn < amountInMaximum) {
-            TransferHelper.safeApprove(DAI, address(swapRouter), 0);
-            TransferHelper.safeTransferFrom(
-                DAI,
-                address(this),
-                msg.sender,
-                amountInMaximum - amountIn
-            );
-        }
+        // The call to `exactInputSingle` executes the swap.
+        amountOut = swapRouter.exactInputSingle(params);
     }
 }

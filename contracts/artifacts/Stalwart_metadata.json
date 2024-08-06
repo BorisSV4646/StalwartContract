@@ -170,6 +170,17 @@
 				"type": "error"
 			},
 			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
+				"name": "InvalidERC20Token",
+				"type": "error"
+			},
+			{
 				"inputs": [],
 				"name": "InvalidStableType",
 				"type": "error"
@@ -432,7 +443,18 @@
 				"type": "function"
 			},
 			{
-				"inputs": [],
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "token",
+						"type": "address"
+					}
+				],
 				"name": "buyStalwartForToken",
 				"outputs": [],
 				"stateMutability": "nonpayable",
@@ -980,19 +1002,19 @@
 			]
 		},
 		"contracts/MultiSig.sol": {
-			"keccak256": "0x48d29ab53804c6269b63d9b44d4220973c373a2a8075ad2b45defbec61c61cb9",
+			"keccak256": "0x8e85a46b1d4a3e752abdea9a6575e0ab2f04f74552f02279c03aa314de30eb7e",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://e2b85d745b1852bbe80be11c85ed19a00fec9a19d8182d0895100ceedffbcda0",
-				"dweb:/ipfs/Qmd6GMgG4jgx5YthpwsCZ8L5ABLxUtFXCJ5SebmA1mbZij"
+				"bzz-raw://9afa6e7d9daa49da925a3427a1e2a953ce2e1fbcf9d58d244d3ec2ccbf07cca8",
+				"dweb:/ipfs/QmQLZMgBkLqtxWfGiXm7YCduFsxBB9ggNUeuisbPpeVrGG"
 			]
 		},
 		"contracts/Stalwart.sol": {
-			"keccak256": "0x6ec9f432a1e8bc387e2af5aebb9d6e1f2380d446dd19a41702d4c4ea452ce3eb",
+			"keccak256": "0x6a9c1486e83da3873ce6d8b67586c9b4fcda68232cc4b1f54c7f57b1b73d9b87",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://498c539e1c283663a250ee2670e97a48616dea7921bdab84496b48c5275c4319",
-				"dweb:/ipfs/QmNijSEyG7gXxbp5vTJav1ZxnT42GGP3z3UaCnxqntabYP"
+				"bzz-raw://9105a6ea7777b06928c3775138a9f96bb84c6e0fad9e85fc6c56bf96299a0de4",
+				"dweb:/ipfs/QmcFM6qn3LknDjakaBjiV7oHAPrD8eonR7JAFB44t2iwTM"
 			]
 		},
 		"contracts/SwapUniswap.sol": {

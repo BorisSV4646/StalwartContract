@@ -90,12 +90,12 @@ contract MultiSigStalwart {
     }
 
     // isERC20 checks if the address is an ERC20 token
-    function isERC20(address _token) internal view returns (bool) {
-        (bool success, bytes memory data) = _token.staticcall(
-            abi.encodeWithSignature("totalSupply()")
-        );
-        return success && data.length > 0;
-    }
+    // function isERC20(address _token) internal view returns (bool) {
+    //     (bool success, bytes memory data) = _token.staticcall(
+    //         abi.encodeWithSignature("totalSupply()")
+    //     );
+    //     return success && data.length > 0;
+    // }
 
     function executeTransaction(uint _transactionId) internal {
         Transaction storage transaction = transactions[_transactionId];
@@ -117,7 +117,7 @@ contract MultiSigStalwart {
             if (transaction.value == 0) {
                 // Token transaction
                 address token = transaction.to;
-                require(isERC20(token), "Address is not a valid ERC20 token");
+                // require(isERC20(token), "Address is not a valid ERC20 token");
 
                 // decoding function and parameters
                 bytes4 sig = extractFunctionSignature(transaction.data);
