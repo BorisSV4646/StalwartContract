@@ -7,6 +7,10 @@ import "./MultiSig.sol";
 import "./SwapUniswap.sol";
 
 contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
+    uint256 public usdtTargetPercentage = 70;
+    uint256 public usdcTargetPercentage = 20;
+    uint256 public daiTargetPercentage = 10;
+
     error InvalidStableType();
     error InsufficientAllowance(
         uint256 allowance,
@@ -19,21 +23,24 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
         address sender
     );
     error InvalidERC20Token(address token);
+    error InvalidPercentage(uint256 percents);
 
     constructor(
         address[] memory _owners,
         uint _requiredSignatures,
         ISwapRouter _swapRouter,
+        IQuoterV2 _quoterv2,
         address _dai,
         address _usdt,
         address _usdc
     )
         ERC20("Stalwart", "STL")
         MultiSigStalwart(_owners, _requiredSignatures)
-        SwapUniswap(_swapRouter, _dai, _usdt, _usdc)
+        SwapUniswap(_swapRouter, _quoterv2, _dai, _usdt, _usdc)
     {}
 
     // need to get approve
+    // need give 50% to aave pools
     function buyStalwartForStable(
         uint256 amount,
         StableType typeStable
@@ -53,6 +60,7 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
     }
 
     // need to get approve
+    // need give 50% to aave pools
     function buyStalwartForToken(uint256 amount, address token) external {
         isERC20(token);
 
@@ -70,24 +78,31 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
 
     function rebalancer() external {}
 
+    function sendToPool() internal {}
+
+    function getFromPool() internal {}
+
     function checkStableBalance() internal view returns (address) {
         IERC20 usdt = IERC20(USDT);
-        IERC20 usds = IERC20(USDC);
+        IERC20 usdc = IERC20(USDC);
         IERC20 dai = IERC20(DAI);
 
         uint256 balanceUSDT = usdt.balanceOf(address(this));
-        uint256 balanceUSDC = usds.balanceOf(address(this));
+        uint256 balanceUSDC = usdc.balanceOf(address(this));
         uint256 balanceDAI = dai.balanceOf(address(this));
 
-        return
-            getMinBalanceAddress(
-                balanceUSDT,
-                USDT,
-                balanceUSDC,
-                USDC,
-                balanceDAI,
-                DAI
-            );
+        uint256 totalBalance = balanceUSDT + balanceUSDC + balanceDAI;
+
+        uint256 usdtPercentage = (balanceUSDT * 100) / totalBalance;
+        uint256 usdcPercentage = (balanceUSDC * 100) / totalBalance;
+
+        if (usdtPercentage < usdtTargetPercentage) {
+            return USDT;
+        } else if (usdcPercentage < usdcTargetPercentage) {
+            return USDC;
+        } else {
+            return DAI;
+        }
     }
 
     function getMinBalanceAddress(
@@ -147,5 +162,21 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
         } else {
             revert InvalidStableType();
         }
+    }
+
+    function setUsdtTargetPercentage(
+        uint256 _usdtPercentage,
+        uint256 _usdcPercentage,
+        uint256 _daiPercentage
+    ) external {
+        uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
+
+        if (percents != 100) {
+            revert InvalidPercentage(percents);
+        }
+
+        usdtTargetPercentage = _usdtPercentage;
+        usdcTargetPercentage = _usdcPercentage;
+        daiTargetPercentage = _daiPercentage;
     }
 }
