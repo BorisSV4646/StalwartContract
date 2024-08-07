@@ -5,10 +5,14 @@ pragma abicoder v2;
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
+import "./IUniswapPool.sol";
 
 contract SwapUniswap {
     ISwapRouter public immutable swapRouter;
     IQuoterV2 public immutable quoterV2;
+    IUniswapV3Factory public immutable uniswapV3Factory;
+
+    uint24[] public feeTiers = [500, 3000, 10000];
 
     enum StableType {
         DAI,
@@ -19,28 +23,33 @@ contract SwapUniswap {
     address public immutable DAI;
     address public immutable USDT;
     address public immutable USDC;
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public immutable WETH;
 
-    uint24 public constant poolFee = 3000;
+    error NoAvalibleFee();
 
     constructor(
         ISwapRouter _swapRouter,
         IQuoterV2 _quoterv2,
+        IUniswapV3Factory _uniswapV3Factory,
         address _dai,
         address _usdt,
-        address _usdc
+        address _usdc,
+        address _weth
     ) {
         swapRouter = _swapRouter;
         quoterV2 = _quoterv2;
+        uniswapV3Factory = _uniswapV3Factory;
         DAI = _dai;
         USDT = _usdt;
         USDC = _usdc;
+        WETH = _weth;
     }
 
     function getAmountOutMinimum(
         address tokenIn,
         address tokenOut,
-        uint256 amountIn
+        uint256 amountIn,
+        uint24 poolFee
     ) public returns (uint256 amountOutMinimum, uint160 sqrtPriceX96After) {
         IQuoterV2.QuoteExactInputSingleParams memory params = IQuoterV2
             .QuoteExactInputSingleParams({
@@ -65,6 +74,8 @@ contract SwapUniswap {
         address token,
         address stable
     ) internal returns (uint256 amountOut) {
+        uint24 poolFee = findMinimumFeeTier(token, stable);
+
         TransferHelper.safeTransferFrom(
             token,
             msg.sender,
@@ -77,7 +88,7 @@ contract SwapUniswap {
         (
             uint256 amountOutMinimum,
             uint160 sqrtPriceX96After
-        ) = getAmountOutMinimum(token, stable, amountIn);
+        ) = getAmountOutMinimum(token, stable, amountIn, poolFee);
 
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
             .ExactInputSingleParams({
@@ -104,6 +115,8 @@ contract SwapUniswap {
         address token,
         address stable
     ) internal returns (uint256 amountOut) {
+        uint24 poolFee = findMinimumFeeTier(token, stable);
+
         TransferHelper.safeTransferFrom(
             token,
             msg.sender,
@@ -123,5 +136,53 @@ contract SwapUniswap {
             });
 
         amountOut = swapRouter.exactInput(params);
+    }
+
+    function findAvailableFeeTiers(
+        address tokenA,
+        address tokenB
+    ) internal view returns (uint24[] memory availableFeeTiers) {
+        uint24[] memory availableFees = new uint24[](feeTiers.length);
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < feeTiers.length; i++) {
+            address pool = uniswapV3Factory.getPool(
+                tokenA,
+                tokenB,
+                feeTiers[i]
+            );
+            if (pool != address(0)) {
+                availableFees[count] = feeTiers[i];
+                count++;
+            }
+        }
+
+        availableFeeTiers = new uint24[](count);
+        for (uint256 i = 0; i < count; i++) {
+            availableFeeTiers[i] = availableFees[i];
+        }
+    }
+
+    function findMinimumFeeTier(
+        address tokenA,
+        address tokenB
+    ) internal view returns (uint24) {
+        uint24[] memory availableFeeTiers = findAvailableFeeTiers(
+            tokenA,
+            tokenB
+        );
+
+        if (availableFeeTiers.length == 0) {
+            revert NoAvalibleFee();
+        }
+
+        uint24 minFee = availableFeeTiers[0];
+        for (uint256 i = 1; i < availableFeeTiers.length; i++) {
+            if (availableFeeTiers[i] < minFee) {
+                minFee = availableFeeTiers[i];
+            }
+        }
+
+        return minFee;
     }
 }

@@ -18,6 +18,11 @@
 						"type": "address"
 					},
 					{
+						"internalType": "contract IUniswapV3Factory",
+						"name": "_uniswapV3Factory",
+						"type": "address"
+					},
+					{
 						"internalType": "address",
 						"name": "_dai",
 						"type": "address"
@@ -31,10 +36,20 @@
 						"internalType": "address",
 						"name": "_usdc",
 						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "_weth",
+						"type": "address"
 					}
 				],
 				"stateMutability": "nonpayable",
 				"type": "constructor"
+			},
+			{
+				"inputs": [],
+				"name": "NoAvalibleFee",
+				"type": "error"
 			},
 			{
 				"inputs": [],
@@ -91,6 +106,25 @@
 			{
 				"inputs": [
 					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"name": "feeTiers",
+				"outputs": [
+					{
+						"internalType": "uint24",
+						"name": "",
+						"type": "uint24"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
 						"internalType": "address",
 						"name": "tokenIn",
 						"type": "address"
@@ -104,6 +138,11 @@
 						"internalType": "uint256",
 						"name": "amountIn",
 						"type": "uint256"
+					},
+					{
+						"internalType": "uint24",
+						"name": "poolFee",
+						"type": "uint24"
 					}
 				],
 				"name": "getAmountOutMinimum",
@@ -120,19 +159,6 @@
 					}
 				],
 				"stateMutability": "nonpayable",
-				"type": "function"
-			},
-			{
-				"inputs": [],
-				"name": "poolFee",
-				"outputs": [
-					{
-						"internalType": "uint24",
-						"name": "",
-						"type": "uint24"
-					}
-				],
-				"stateMutability": "view",
 				"type": "function"
 			},
 			{
@@ -154,6 +180,19 @@
 				"outputs": [
 					{
 						"internalType": "contract ISwapRouter",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "uniswapV3Factory",
+				"outputs": [
+					{
+						"internalType": "contract IUniswapV3Factory",
 						"name": "",
 						"type": "address"
 					}
@@ -229,12 +268,20 @@
 				"dweb:/ipfs/QmcPBk47QLMFWcX2y2S9eMFsJgoYWBd3R8ey55Bgmv6w6v"
 			]
 		},
-		"contracts/SwapUniswap.sol": {
-			"keccak256": "0x3abe53db1264b3eb1c5ee3922e388d501a1eca6ae30d43a33d21cf6e2593b39b",
+		"contracts/IUniswapPool.sol": {
+			"keccak256": "0x8c0ad54272b9eb95f208708f0e74d7952c4f5e508e110576d8cafdcc192345a7",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://e55b71cd7b6ac9bc7e1ae9e56a780bcf1964abfb2bde3c295653b1de50df29c7",
-				"dweb:/ipfs/QmV1m2fkrPiwZ1m8VeuMmHoW3TYKtm22iNj2jRejLR6ti1"
+				"bzz-raw://41bf13f35eb6268ce67273537b54b03a28e6999f8b4b44a25426e99ff851b359",
+				"dweb:/ipfs/Qmes8QGUSiK5cnTh5vbnAHdvnrCgrVCFw2aFGUbjPFyuju"
+			]
+		},
+		"contracts/SwapUniswap.sol": {
+			"keccak256": "0x75eabd993429302f851c1d669bdfaa7be9023fc202483b95879073ee231105dc",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://1257a8b9fd8cc0e8c660cb6ae8828669f042f0208ec5f4efa0b3beb24a1bf55d",
+				"dweb:/ipfs/QmenW4NKRKdKxmnme7g8HapVwsQTLWJXkiL4SRZ8uhSrKZ"
 			]
 		}
 	},
