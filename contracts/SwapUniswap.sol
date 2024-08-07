@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
+pragma abicoder v2;
 
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
@@ -39,7 +40,7 @@ contract SwapUniswap {
     /// @return amountOut The amount of WETH9 received after the swap.
     function swapExactInputMultihop(
         uint256 amountIn
-    ) external returns (uint256 amountOut) {
+    ) internal returns (uint256 amountOut) {
         TransferHelper.safeTransferFrom(
             DAI,
             msg.sender,
@@ -67,8 +68,10 @@ contract SwapUniswap {
     /// @param amountIn The exact amount of DAI that will be swapped for WETH9.
     /// @return amountOut The amount of WETH9 received.
     function swapExactInputSingle(
-        uint256 amountIn
-    ) external returns (uint256 amountOut) {
+        uint256 amountIn,
+        address token,
+        address stable
+    ) internal returns (uint256 amountOut) {
         // msg.sender must approve this contract
 
         // Transfer the specified amount of DAI to this contract.

@@ -39,9 +39,8 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
         StableType typeStable
     ) external {
         address stableAddress = getStableAddress(typeStable);
-        IERC20 stableToken = IERC20(stableAddress);
 
-        checkAllowanceAndBalance(msg.sender, stableToken, amount);
+        checkAllowanceAndBalance(msg.sender, stableAddress, amount);
 
         TransferHelper.safeTransferFrom(
             stableAddress,
@@ -57,12 +56,10 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
     function buyStalwartForToken(uint256 amount, address token) external {
         isERC20(token);
 
-        IERC20 sellToken = IERC20(token);
+        checkAllowanceAndBalance(msg.sender, token, amount);
 
-        checkAllowanceAndBalance(msg.sender, sellToken, amount);
-
-        address memory needStable = checkStableBalance();
-        uint256 swapAmount = swapExactInputMultihop(amount, token, needStable);
+        address needStable = checkStableBalance();
+        uint256 swapAmount = swapExactInputSingle(amount, token, needStable);
 
         _mint(msg.sender, swapAmount);
     }
