@@ -6,14 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./MultiSig.sol";
 import "./SwapUniswap.sol";
 import "./IWETH.sol";
+import "./StalwartLiquidity.sol";
 
-contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
-    bool public sendLiquidity = true;
-
-    uint256 public usdtTargetPercentage = 70;
-    uint256 public usdcTargetPercentage = 20;
-    uint256 public daiTargetPercentage = 10;
-
+contract Stalwart is StalwartLiquidity, ERC20, MultiSigStalwart, SwapUniswap {
     error InvalidStableType();
     error InsufficientAllowance(
         uint256 allowance,
@@ -26,7 +21,6 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
         address sender
     );
     error InvalidERC20Token(address token);
-    error InvalidPercentage(uint256 percents);
     error InsufficientStableBalance(uint256 stableBalance, uint256 amount);
 
     constructor(
@@ -38,7 +32,10 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
         address _dai,
         address _usdt,
         address _usdc,
-        address _weth
+        address _weth,
+        address _usdtRebalancerPool,
+        address _usdcRebalancerPool,
+        address _daiRebalancerPool
     )
         ERC20("Stalwart", "STL")
         MultiSigStalwart(_owners, _requiredSignatures)
@@ -50,6 +47,11 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
             _usdt,
             _usdc,
             _weth
+        )
+        StalwartLiquidity(
+            _usdtRebalancerPool,
+            _usdcRebalancerPool,
+            _daiRebalancerPool
         )
     {}
 
@@ -228,64 +230,5 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
 
     function showRecieveStable() external view returns (address needStable) {
         needStable = checkStableBalance(true);
-    }
-
-    function setUsdtTargetPercentage(
-        uint256 _usdtPercentage,
-        uint256 _usdcPercentage,
-        uint256 _daiPercentage
-    ) external onlyOwner {
-        uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
-
-        if (percents != 100) {
-            revert InvalidPercentage(percents);
-        }
-
-        bytes memory data = abi.encodeWithSignature(
-            "executeSetUsdtTargetPercentage(uint256,uint256,uint256)",
-            _usdtPercentage,
-            _usdcPercentage,
-            _daiPercentage
-        );
-        createTransaction(data);
-    }
-
-    function executeSetUsdtTargetPercentage(
-        uint256 _usdtPercentage,
-        uint256 _usdcPercentage,
-        uint256 _daiPercentage
-    ) internal {
-        usdtTargetPercentage = _usdtPercentage;
-        usdcTargetPercentage = _usdcPercentage;
-        daiTargetPercentage = _daiPercentage;
-    }
-
-    function rebalancer() external onlyOwner {
-        bytes memory data = abi.encodeWithSignature("executeRebalancer()");
-        createTransaction(data);
-    }
-
-    function executeRebalancer() internal {
-        // Реализация функции ребалансировки
-    }
-
-    function changeBalancerToAaave() external onlyOwner {
-        bytes memory data = abi.encodeWithSignature(
-            "executeChangeBalancerToAaave()"
-        );
-        createTransaction(data);
-    }
-
-    function executeChangeBalancerToAaave() internal {
-        // Реализация функции изменения баланса на Aave
-    }
-
-    function getAllLiquidity() external onlyOwner {
-        bytes memory data = abi.encodeWithSignature("executeGetAllLiquidity()");
-        createTransaction(data);
-    }
-
-    function executeGetAllLiquidity() internal {
-        // Реализация функции получения всей ликвидности
     }
 }
