@@ -4,7 +4,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-ignition";
 import "@nomicfoundation/hardhat-ignition-ethers";
 
-dotenvConfig({ path: "../.env" });
+dotenvConfig({ path: ".env" });
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
@@ -41,7 +41,7 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
-    apiKey: process.env.ARB_API_KEY || "",
+    apiKey: process.env.ARB_API_KEY,
   },
 };
 

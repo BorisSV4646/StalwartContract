@@ -8,6 +8,8 @@ import "./SwapUniswap.sol";
 import "./IWETH.sol";
 
 contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
+    bool public sendLiquidity = true;
+
     uint256 public usdtTargetPercentage = 70;
     uint256 public usdcTargetPercentage = 20;
     uint256 public daiTargetPercentage = 10;
@@ -224,23 +226,66 @@ contract Stalwart is ERC20, MultiSigStalwart, SwapUniswap {
         }
     }
 
-    // TODO: сделать мультисиг для этой функции
+    function showRecieveStable() external view returns (address needStable) {
+        needStable = checkStableBalance(true);
+    }
+
     function setUsdtTargetPercentage(
         uint256 _usdtPercentage,
         uint256 _usdcPercentage,
         uint256 _daiPercentage
-    ) external {
+    ) external onlyOwner {
         uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
 
         if (percents != 100) {
             revert InvalidPercentage(percents);
         }
 
+        bytes memory data = abi.encodeWithSignature(
+            "executeSetUsdtTargetPercentage(uint256,uint256,uint256)",
+            _usdtPercentage,
+            _usdcPercentage,
+            _daiPercentage
+        );
+        createTransaction(data);
+    }
+
+    function executeSetUsdtTargetPercentage(
+        uint256 _usdtPercentage,
+        uint256 _usdcPercentage,
+        uint256 _daiPercentage
+    ) internal {
         usdtTargetPercentage = _usdtPercentage;
         usdcTargetPercentage = _usdcPercentage;
         daiTargetPercentage = _daiPercentage;
     }
 
-    // TODO: сделать мультисиг для этой функции
-    function rebalancer() external {}
+    function rebalancer() external onlyOwner {
+        bytes memory data = abi.encodeWithSignature("executeRebalancer()");
+        createTransaction(data);
+    }
+
+    function executeRebalancer() internal {
+        // Реализация функции ребалансировки
+    }
+
+    function changeBalancerToAaave() external onlyOwner {
+        bytes memory data = abi.encodeWithSignature(
+            "executeChangeBalancerToAaave()"
+        );
+        createTransaction(data);
+    }
+
+    function executeChangeBalancerToAaave() internal {
+        // Реализация функции изменения баланса на Aave
+    }
+
+    function getAllLiquidity() external onlyOwner {
+        bytes memory data = abi.encodeWithSignature("executeGetAllLiquidity()");
+        createTransaction(data);
+    }
+
+    function executeGetAllLiquidity() internal {
+        // Реализация функции получения всей ликвидности
+    }
 }
