@@ -18,12 +18,16 @@ contract MultiSigStalwart {
     event TransactionSigned(uint256 indexed transactionId, address by);
     event TransactionExecuted(uint256 indexed transactionId);
 
+    error OwnersRequire(uint ownersLenght);
+    error InvalidNumberSignatures(uint signatures, uint ownersLenght);
     error NotAnOwner(address sender);
     error NotTransaction(uint256 idTransaction);
     error AlreadyExecuted(uint256 idTransaction);
     error AlreadySigned(uint256 idTransactio);
     error NotEnoughSignatures(uint256 idTransactio);
     error onlyMultiSigError(address sender);
+    error AddressNotFound(address owner);
+    error InvalidAddressOwner(address owner);
 
     modifier onlyOwner() {
         if (!isOwner(msg.sender)) {
@@ -97,5 +101,68 @@ contract MultiSigStalwart {
             }
         }
         return false;
+    }
+
+    function addAddressOwner(address owner, bool addNew) external onlyOwner {
+        if (owner == address(0)) {
+            revert InvalidAddressOwner(owner);
+        }
+
+        bytes memory data = abi.encodeWithSignature(
+            "executeAddAddressOwner(address)",
+            owner,
+            addNew
+        );
+        createTransaction(data);
+    }
+
+    function executeAddAddressOwner(address owner, bool addNew) internal {
+        if (addNew) {
+            owners.push(owner);
+        } else {
+            uint indexToRemove = owners.length;
+
+            for (uint i = 0; i < owners.length; i++) {
+                if (owners[i] == owner) {
+                    indexToRemove = i;
+                    break;
+                }
+            }
+
+            if (indexToRemove == owners.length) {
+                revert AddressNotFound(owner);
+            }
+
+            for (uint i = indexToRemove; i < owners.length - 1; i++) {
+                owners[i] = owners[i + 1];
+            }
+
+            owners.pop();
+        }
+    }
+
+    function changeRequiredSignatures(
+        uint256 newRequiredSignatures
+    ) external onlyOwner {
+        if (
+            newRequiredSignatures <= 2 || newRequiredSignatures > owners.length
+        ) {
+            revert InvalidNumberSignatures(
+                newRequiredSignatures,
+                owners.length
+            );
+        }
+
+        bytes memory data = abi.encodeWithSignature(
+            "executeChangeRequiredSignatures(uint256)",
+            newRequiredSignatures
+        );
+        createTransaction(data);
+    }
+
+    function executeChangeRequiredSignatures(
+        uint256 newRequiredSignatures
+    ) internal {
+        requiredSignatures = newRequiredSignatures;
     }
 }

@@ -8,9 +8,9 @@ import {IWETH} from "./interfaces/IWETH.sol";
 import {StalwartLiquidity} from "./StalwartLiquidity.sol";
 
 contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
-    error OwnersRequire(uint ownersLenght);
-    error InvalidNumberSignatures(uint signatures, uint ownersLenght);
     error InvalidStableType();
+    error InvalidPoolType();
+    error InvalidPoolAddress();
     error InsufficientAllowance(
         uint256 allowance,
         uint256 amount,
@@ -80,7 +80,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         if (_owners.length == 0) {
             revert OwnersRequire(_owners.length);
         }
-        if (_requiredSignatures == 0 || _requiredSignatures != _owners.length) {
+        if (_requiredSignatures <= 2 || _requiredSignatures > _owners.length) {
             revert InvalidNumberSignatures(_requiredSignatures, _owners.length);
         }
         owners = _owners;
@@ -88,7 +88,6 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     }
 
     // need to get approve
-    // need give 50% to aave pools
     function buyStalwartForStable(
         uint256 amount,
         StableType typeStable
@@ -104,11 +103,21 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             amount
         );
 
+        if (sendLiquidity) {
+            address poolAddress = getPoolAddress(typeStable);
+            uint256 amountLiquidity = (amount * percentLiquidity) / 100;
+            TransferHelper.safeApprove(
+                stableAddress,
+                poolAddress,
+                amountLiquidity
+            );
+            _sendToPool(poolAddress, amountLiquidity);
+        }
+
         _mint(msg.sender, amount);
     }
 
     // need to get approve
-    // need give 50% to aave pools
     function buyStalwartForToken(uint256 amount, address token) external {
         isERC20(token);
 
@@ -117,10 +126,20 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         address needStable = checkStableBalance(false);
         uint256 swapAmount = swapExactInputSingle(amount, token, needStable);
 
+        if (sendLiquidity) {
+            address poolAddress = getPoolAddress(needStable);
+            uint256 amountLiquidity = (swapAmount * percentLiquidity) / 100;
+            TransferHelper.safeApprove(
+                needStable,
+                poolAddress,
+                amountLiquidity
+            );
+            _sendToPool(poolAddress, amountLiquidity);
+        }
+
         _mint(msg.sender, swapAmount);
     }
 
-    // need give 50% to aave pools
     function buyStalwartForEth() external payable {
         uint256 amount = msg.value;
         IWETH(WETH).deposit{value: amount}();
@@ -128,10 +147,20 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         address needStable = checkStableBalance(false);
         uint256 swapAmount = swapExactInputSingle(amount, WETH, needStable);
 
+        if (sendLiquidity) {
+            address poolAddress = getPoolAddress(needStable);
+            uint256 amountLiquidity = (swapAmount * percentLiquidity) / 100;
+            TransferHelper.safeApprove(
+                needStable,
+                poolAddress,
+                amountLiquidity
+            );
+            _sendToPool(poolAddress, amountLiquidity);
+        }
+
         _mint(msg.sender, swapAmount);
     }
 
-    // need give 50% to aave pools
     function soldStalwart(uint256 amount) external {
         checkAllowanceAndBalance(msg.sender, address(this), amount);
 
@@ -141,8 +170,10 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
 
         IERC20 stableToken = IERC20(needStable);
         uint256 stableBalance = stableToken.balanceOf(address(this));
+
         if (stableBalance < amount) {
-            revert InsufficientStableBalance(stableBalance, amount);
+            address poolAddress = getPoolAddress(needStable);
+            _getFromPool(poolAddress, amount);
         }
 
         TransferHelper.safeTransferFrom(
@@ -157,19 +188,37 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         needStable = checkStableBalance(true);
     }
 
+    function getAllBalances()
+        public
+        view
+        returns (uint256 usdtBalance, uint256 usdcBalance, uint256 daiBalance)
+    {
+        usdtBalance = IERC20(USDT).balanceOf(address(this));
+        usdcBalance = IERC20(USDC).balanceOf(address(this));
+        daiBalance = IERC20(DAI).balanceOf(address(this));
+        return (usdtBalance, usdcBalance, daiBalance);
+    }
+
     function checkStableBalance(
         bool getMaxDeviation
     ) internal view returns (address) {
-        IERC20 usdt = IERC20(USDT);
-        IERC20 usdc = IERC20(USDC);
-        IERC20 dai = IERC20(DAI);
+        (
+            uint256 usdtBalance,
+            uint256 usdcBalance,
+            uint256 daiBalance
+        ) = getAllBalances();
+        (
+            uint256 usdtPoolToken,
+            uint256 usdcPoolToken,
+            uint256 daiPoolToken
+        ) = checkBalancerTokenBalances();
 
-        uint256 balanceUSDT = usdt.balanceOf(address(this));
-        uint256 balanceUSDC = usdc.balanceOf(address(this));
-        uint256 balanceDAI = dai.balanceOf(address(this));
-
-        uint256 totalBalance = (balanceUSDT + balanceUSDC + balanceDAI) /
-            10 ** 18;
+        uint256 totalBalance = (usdtBalance +
+            usdcBalance +
+            daiBalance +
+            usdtPoolToken +
+            usdcPoolToken +
+            daiPoolToken) / 10 ** 18;
 
         uint256 targetUSDT = (totalBalance * usdtTargetPercentage) / 100;
         uint256 targetUSDC = (totalBalance * usdcTargetPercentage) / 100;
@@ -257,6 +306,76 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             return USDC;
         } else {
             revert InvalidStableType();
+        }
+    }
+
+    function getPoolAddress(
+        StableType typeStable
+    ) internal view returns (address) {
+        if (typeStable == StableType.DAI) {
+            return daiRebalancerPool;
+        } else if (typeStable == StableType.USDT) {
+            return usdtRebalancerPool;
+        } else if (typeStable == StableType.USDC) {
+            return usdcRebalancerPool;
+        } else {
+            revert InvalidPoolType();
+        }
+    }
+
+    function getPoolAddress(
+        address stableAddress
+    ) internal view returns (address) {
+        if (stableAddress == DAI) {
+            return daiRebalancerPool;
+        } else if (stableAddress == USDT) {
+            return usdtRebalancerPool;
+        } else if (stableAddress == USDC) {
+            return usdcRebalancerPool;
+        } else {
+            revert InvalidPoolAddress();
+        }
+    }
+
+    function rebalancer() external onlyOwner {
+        bytes memory data = abi.encodeWithSignature("executeRebalancer()");
+        createTransaction(data);
+    }
+
+    function executeRebalancer() internal {
+        (
+            uint256 usdtPoolToken,
+            uint256 usdcPoolToken,
+            uint256 daiPoolToken
+        ) = checkBalancerTokenBalances();
+        (
+            uint256 usdtBalance,
+            uint256 usdcBalance,
+            uint256 daiBalance
+        ) = getAllBalances();
+
+        rebalanceTokenPool(usdtBalance, usdtPoolToken, usdtRebalancerPool);
+        rebalanceTokenPool(usdcBalance, usdcPoolToken, usdcRebalancerPool);
+        rebalanceTokenPool(daiBalance, daiPoolToken, daiRebalancerPool);
+    }
+
+    // пока только ребалансирует активы между пулом и контрактом,
+    // не делает ребалансировку в процентах между токенами, так как
+    // тогда опять меняется соотношение с токенами в пулах
+    function rebalanceTokenPool(
+        uint256 tokenBalance,
+        uint256 poolTokenBalance,
+        address rebalancerPool
+    ) internal {
+        uint256 totalBalance = tokenBalance + poolTokenBalance;
+        uint256 targetBalance = (totalBalance * percentLiquidity) / 100;
+
+        if (targetBalance < percentLiquidity) {
+            uint256 needAmount = poolTokenBalance - (totalBalance / 2);
+            _getFromPool(rebalancerPool, needAmount);
+        } else {
+            uint256 needAmount = tokenBalance - (totalBalance / 2);
+            _sendToPool(rebalancerPool, needAmount);
         }
     }
 }

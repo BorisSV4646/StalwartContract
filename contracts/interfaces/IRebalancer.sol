@@ -13,6 +13,12 @@ interface IRebalancer {
         address owner
     ) external returns (uint256 shares);
 
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) external returns (uint256 assets);
+
     function previewWithdraw(
         uint256 assets
     ) external view returns (uint256 shares);

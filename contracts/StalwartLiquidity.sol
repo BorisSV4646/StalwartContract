@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
+// TODO: 1) разобраться с контрактами ребалансера 2) сделать смену пулов на aave 3) сделать ребалансировку
 
 import {MultiSigStalwart} from "./MultiSig.sol";
 import {IRebalancer} from "./interfaces/IRebalancer.sol";
 
 contract StalwartLiquidity is MultiSigStalwart {
-    bool public sendLiquidity = true;
+    bool public sendLiquidity;
+
+    uint256 public percentLiquidity;
 
     uint256 public usdtTargetPercentage;
     uint256 public usdcTargetPercentage;
@@ -16,6 +19,7 @@ contract StalwartLiquidity is MultiSigStalwart {
     address public daiRebalancerPool;
 
     error InvalidPercentage(uint256 percents);
+    error InvalidPercentLiquidity(uint256 newPercentLiquidity);
     error InvalidPoolsAddress(
         address usdtPool,
         address usdcPool,
@@ -53,14 +57,38 @@ contract StalwartLiquidity is MultiSigStalwart {
         usdtTargetPercentage = _usdtPercentage;
         usdcTargetPercentage = _usdcPercentage;
         daiTargetPercentage = _daiPercentage;
+
+        sendLiquidity = true;
+        percentLiquidity = 50;
     }
 
-    function sendToPool() internal {}
+    function _sendToPool(address pool, uint256 amount) internal {
+        IRebalancer(pool).deposit(amount, address(this));
+    }
 
-    function getFromPool() internal {}
+    function _getFromPool(address pool, uint256 amount) internal {
+        IRebalancer(pool).withdraw(amount, address(this), address(this));
+    }
 
-    // TODO: разобраться с контрактами ребалансера
-    function setUsdtTargetPercentage(
+    function checkBalancerTokenBalances()
+        public
+        view
+        returns (
+            uint256 usdtPoolToken,
+            uint256 usdcPoolToken,
+            uint256 daiPoolToken
+        )
+    {
+        usdtPoolToken = IRebalancer(usdtRebalancerPool).balanceOf(
+            address(this)
+        );
+        usdcPoolToken = IRebalancer(usdcRebalancerPool).balanceOf(
+            address(this)
+        );
+        daiPoolToken = IRebalancer(daiRebalancerPool).balanceOf(address(this));
+    }
+
+    function setTargetPercentage(
         uint256 _usdtPercentage,
         uint256 _usdcPercentage,
         uint256 _daiPercentage
@@ -72,7 +100,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         }
 
         bytes memory data = abi.encodeWithSignature(
-            "executeSetUsdtTargetPercentage(uint256,uint256,uint256)",
+            "executeSetTargetPercentage(uint256,uint256,uint256)",
             _usdtPercentage,
             _usdcPercentage,
             _daiPercentage
@@ -80,7 +108,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         createTransaction(data);
     }
 
-    function executeSetUsdtTargetPercentage(
+    function executeSetTargetPercentage(
         uint256 _usdtPercentage,
         uint256 _usdcPercentage,
         uint256 _daiPercentage
@@ -88,15 +116,6 @@ contract StalwartLiquidity is MultiSigStalwart {
         usdtTargetPercentage = _usdtPercentage;
         usdcTargetPercentage = _usdcPercentage;
         daiTargetPercentage = _daiPercentage;
-    }
-
-    function rebalancer() external onlyOwner {
-        bytes memory data = abi.encodeWithSignature("executeRebalancer()");
-        createTransaction(data);
-    }
-
-    function executeRebalancer() internal {
-        // Реализация функции ребалансировки
     }
 
     function changeBalancerToAaave() external onlyOwner {
@@ -111,12 +130,53 @@ contract StalwartLiquidity is MultiSigStalwart {
     }
 
     function getAllLiquidity() external onlyOwner {
-        bytes memory data = abi.encodeWithSignature("executeGetAllLiquidity()");
+        (
+            uint256 usdtPoolToken,
+            uint256 usdcPoolToken,
+            uint256 daiPoolToken
+        ) = checkBalancerTokenBalances();
+
+        bytes memory data = abi.encodeWithSignature(
+            "executeGetAllLiquidity(uint256,uint256,uint256)",
+            usdtPoolToken,
+            usdcPoolToken,
+            daiPoolToken
+        );
         createTransaction(data);
     }
 
-    function executeGetAllLiquidity() internal {
-        // Реализация функции получения всей ликвидности
+    function executeGetAllLiquidity(
+        uint256 usdtPoolTokens,
+        uint256 usdcPoolTokens,
+        uint256 daiPoolTokens
+    ) internal {
+        IRebalancer(usdtRebalancerPool).withdraw(
+            usdtPoolTokens,
+            address(this),
+            address(this)
+        );
+        IRebalancer(usdcRebalancerPool).withdraw(
+            usdcPoolTokens,
+            address(this),
+            address(this)
+        );
+        IRebalancer(daiRebalancerPool).withdraw(
+            daiPoolTokens,
+            address(this),
+            address(this)
+        );
+    }
+
+    function changeSendLiquidity(bool newSendLiquidity) external onlyOwner {
+        bytes memory data = abi.encodeWithSignature(
+            "executeChangeSendLiquidity(bool)",
+            newSendLiquidity
+        );
+        createTransaction(data);
+    }
+
+    function executeChangeSendLiquidity(bool newSendLiquidity) internal {
+        sendLiquidity = newSendLiquidity;
     }
 
     function changePoolsAddress(
@@ -150,8 +210,36 @@ contract StalwartLiquidity is MultiSigStalwart {
         address _usdcRebalancerPool,
         address _daiRebalancerPool
     ) internal {
+        (
+            uint256 usdtPoolToken,
+            uint256 usdcPoolToken,
+            uint256 daiPoolToken
+        ) = checkBalancerTokenBalances();
+
+        executeGetAllLiquidity(usdtPoolToken, usdcPoolToken, daiPoolToken);
+
         usdtRebalancerPool = _usdtRebalancerPool;
         usdcRebalancerPool = _usdcRebalancerPool;
         daiRebalancerPool = _daiRebalancerPool;
+    }
+
+    function changePercentLiquidity(
+        uint256 newPercentLiquidity
+    ) external onlyOwner {
+        if (newPercentLiquidity > 100 || newPercentLiquidity < 0) {
+            revert InvalidPercentLiquidity(newPercentLiquidity);
+        }
+
+        bytes memory data = abi.encodeWithSignature(
+            "executeChangePercentLiquidity(uint256)",
+            newPercentLiquidity
+        );
+        createTransaction(data);
+    }
+
+    function executeChangePercentLiquidity(
+        uint256 newPercentLiquidity
+    ) internal {
+        percentLiquidity = newPercentLiquidity;
     }
 }
