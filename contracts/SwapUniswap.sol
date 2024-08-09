@@ -2,10 +2,10 @@
 pragma solidity ^0.8.26;
 pragma abicoder v2;
 
-import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
-import "./IUniswapPool.sol";
+import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import {IQuoterV2} from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
+import {IUniswapV3Factory, IUniswapV3Pool} from "./interfaces/IUniswapPool.sol";
 
 contract SwapUniswap {
     ISwapRouter public immutable swapRouter;
@@ -26,6 +26,7 @@ contract SwapUniswap {
     address public immutable WETH;
 
     error NoAvalibleFee();
+    error InvalidAddress();
 
     constructor(
         ISwapRouter _swapRouter,
@@ -36,6 +37,15 @@ contract SwapUniswap {
         address _usdc,
         address _weth
     ) {
+        if (
+            _dai == address(0) ||
+            _usdt == address(0) ||
+            _usdc == address(0) ||
+            _weth == address(0)
+        ) {
+            revert InvalidAddress();
+        }
+
         swapRouter = _swapRouter;
         quoterV2 = _quoterv2;
         uniswapV3Factory = _uniswapV3Factory;

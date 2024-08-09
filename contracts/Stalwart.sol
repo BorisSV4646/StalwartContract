@@ -2,13 +2,14 @@
 pragma solidity ^0.8.26;
 
 import "hardhat/console.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "./MultiSig.sol";
-import "./SwapUniswap.sol";
-import "./IWETH.sol";
-import "./StalwartLiquidity.sol";
+import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SwapUniswap, ISwapRouter, IQuoterV2, IUniswapV3Factory, TransferHelper} from "./SwapUniswap.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
+import {StalwartLiquidity} from "./StalwartLiquidity.sol";
 
-contract Stalwart is StalwartLiquidity, ERC20, MultiSigStalwart, SwapUniswap {
+contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
+    error OwnersRequire(uint ownersLenght);
+    error InvalidNumberSignatures(uint signatures, uint ownersLenght);
     error InvalidStableType();
     error InsufficientAllowance(
         uint256 allowance,
@@ -23,37 +24,68 @@ contract Stalwart is StalwartLiquidity, ERC20, MultiSigStalwart, SwapUniswap {
     error InvalidERC20Token(address token);
     error InsufficientStableBalance(uint256 stableBalance, uint256 amount);
 
+    struct RebalancerPools {
+        address usdtRebalancerPool;
+        address usdcRebalancerPool;
+        address daiRebalancerPool;
+    }
+    struct TokensSwap {
+        address usdt;
+        address usdc;
+        address dai;
+        address weth;
+    }
+    struct StablePercent {
+        uint256 usdtPercentage;
+        uint256 usdcPercentage;
+        uint256 daiPercentage;
+    }
+
     constructor(
         address[] memory _owners,
-        uint _requiredSignatures,
+        uint256 _requiredSignatures,
         ISwapRouter _swapRouter,
         IQuoterV2 _quoterv2,
         IUniswapV3Factory _uniswapV3Factory,
-        address _dai,
-        address _usdt,
-        address _usdc,
-        address _weth,
-        address _usdtRebalancerPool,
-        address _usdcRebalancerPool,
-        address _daiRebalancerPool
+        TokensSwap memory _tokenswap,
+        RebalancerPools memory _rebalancerPools,
+        StablePercent memory _stablePercent
     )
         ERC20("Stalwart", "STL")
-        MultiSigStalwart(_owners, _requiredSignatures)
         SwapUniswap(
             _swapRouter,
             _quoterv2,
             _uniswapV3Factory,
-            _dai,
-            _usdt,
-            _usdc,
-            _weth
+            _tokenswap.dai,
+            _tokenswap.usdt,
+            _tokenswap.usdc,
+            _tokenswap.weth
         )
         StalwartLiquidity(
-            _usdtRebalancerPool,
-            _usdcRebalancerPool,
-            _daiRebalancerPool
+            _rebalancerPools.usdtRebalancerPool,
+            _rebalancerPools.usdcRebalancerPool,
+            _rebalancerPools.daiRebalancerPool,
+            _stablePercent.usdtPercentage,
+            _stablePercent.usdcPercentage,
+            _stablePercent.daiPercentage
         )
-    {}
+    {
+        _initializeOwners(_owners, _requiredSignatures);
+    }
+
+    function _initializeOwners(
+        address[] memory _owners,
+        uint256 _requiredSignatures
+    ) internal {
+        if (_owners.length == 0) {
+            revert OwnersRequire(_owners.length);
+        }
+        if (_requiredSignatures == 0 || _requiredSignatures != _owners.length) {
+            revert InvalidNumberSignatures(_requiredSignatures, _owners.length);
+        }
+        owners = _owners;
+        requiredSignatures = _requiredSignatures;
+    }
 
     // need to get approve
     // need give 50% to aave pools
@@ -121,9 +153,9 @@ contract Stalwart is StalwartLiquidity, ERC20, MultiSigStalwart, SwapUniswap {
         );
     }
 
-    function sendToPool() internal {}
-
-    function getFromPool() internal {}
+    function showRecieveStable() external view returns (address needStable) {
+        needStable = checkStableBalance(true);
+    }
 
     function checkStableBalance(
         bool getMaxDeviation
@@ -226,9 +258,5 @@ contract Stalwart is StalwartLiquidity, ERC20, MultiSigStalwart, SwapUniswap {
         } else {
             revert InvalidStableType();
         }
-    }
-
-    function showRecieveStable() external view returns (address needStable) {
-        needStable = checkStableBalance(true);
     }
 }

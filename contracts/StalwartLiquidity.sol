@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-contract StalwartLiquidity {
+import {MultiSigStalwart} from "./MultiSig.sol";
+import {IRebalancer} from "./interfaces/IRebalancer.sol";
+
+contract StalwartLiquidity is MultiSigStalwart {
     bool public sendLiquidity = true;
 
-    uint256 public usdtTargetPercentage = 70;
-    uint256 public usdcTargetPercentage = 20;
-    uint256 public daiTargetPercentage = 10;
+    uint256 public usdtTargetPercentage;
+    uint256 public usdcTargetPercentage;
+    uint256 public daiTargetPercentage;
 
     address public usdtRebalancerPool;
     address public usdcRebalancerPool;
@@ -22,14 +25,40 @@ contract StalwartLiquidity {
     constructor(
         address _usdtRebalancerPool,
         address _usdcRebalancerPool,
-        address _daiRebalancerPool
+        address _daiRebalancerPool,
+        uint256 _usdtPercentage,
+        uint256 _usdcPercentage,
+        uint256 _daiPercentage
     ) {
+        if (
+            _usdtRebalancerPool == address(0) ||
+            _usdcRebalancerPool == address(0) ||
+            _daiRebalancerPool == address(0)
+        ) {
+            revert InvalidPoolsAddress(
+                _usdtRebalancerPool,
+                _usdcRebalancerPool,
+                _daiRebalancerPool
+            );
+        }
         usdtRebalancerPool = _usdtRebalancerPool;
         usdcRebalancerPool = _usdcRebalancerPool;
         daiRebalancerPool = _daiRebalancerPool;
+
+        uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
+
+        if (percents != 100) {
+            revert InvalidPercentage(percents);
+        }
+        usdtTargetPercentage = _usdtPercentage;
+        usdcTargetPercentage = _usdcPercentage;
+        daiTargetPercentage = _daiPercentage;
     }
 
-    // TODO: убрать onlyOwner, сделать проверку в мультисиге контракте
+    function sendToPool() internal {}
+
+    function getFromPool() internal {}
+
     // TODO: разобраться с контрактами ребалансера
     function setUsdtTargetPercentage(
         uint256 _usdtPercentage,
