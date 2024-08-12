@@ -24,68 +24,17 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     error InvalidERC20Token(address token);
     error InsufficientStableBalance(uint256 stableBalance, uint256 amount);
 
-    struct RebalancerPools {
-        address usdtRebalancerPool;
-        address usdcRebalancerPool;
-        address daiRebalancerPool;
-    }
-    struct TokensSwap {
-        address usdt;
-        address usdc;
-        address dai;
-        address weth;
-    }
-    struct StablePercent {
-        uint256 usdtPercentage;
-        uint256 usdcPercentage;
-        uint256 daiPercentage;
-    }
-
     constructor(
         address[] memory _owners,
         uint256 _requiredSignatures,
         ISwapRouter _swapRouter,
         IQuoterV2 _quoterv2,
-        IUniswapV3Factory _uniswapV3Factory,
-        TokensSwap memory _tokenswap,
-        RebalancerPools memory _rebalancerPools,
-        StablePercent memory _stablePercent
+        IUniswapV3Factory _uniswapV3Factory
     )
         ERC20("Stalwart", "STL")
-        SwapUniswap(
-            _swapRouter,
-            _quoterv2,
-            _uniswapV3Factory,
-            _tokenswap.dai,
-            _tokenswap.usdt,
-            _tokenswap.usdc,
-            _tokenswap.weth
-        )
-        StalwartLiquidity(
-            _rebalancerPools.usdtRebalancerPool,
-            _rebalancerPools.usdcRebalancerPool,
-            _rebalancerPools.daiRebalancerPool,
-            _stablePercent.usdtPercentage,
-            _stablePercent.usdcPercentage,
-            _stablePercent.daiPercentage
-        )
-    {
-        _initializeOwners(_owners, _requiredSignatures);
-    }
-
-    function _initializeOwners(
-        address[] memory _owners,
-        uint256 _requiredSignatures
-    ) internal {
-        if (_owners.length == 0) {
-            revert OwnersRequire(_owners.length);
-        }
-        if (_requiredSignatures <= 2 || _requiredSignatures > _owners.length) {
-            revert InvalidNumberSignatures(_requiredSignatures, _owners.length);
-        }
-        owners = _owners;
-        requiredSignatures = _requiredSignatures;
-    }
+        SwapUniswap(_swapRouter, _quoterv2, _uniswapV3Factory)
+        StalwartLiquidity(_owners, _requiredSignatures)
+    {}
 
     // need to get approve
     function buyStalwartForStable(
@@ -103,6 +52,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             amount
         );
 
+        // менять апрув надо при смене ааве
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(typeStable);
             uint256 amountLiquidity = (amount * percentLiquidity) / 100;
@@ -220,9 +170,9 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             usdcPoolToken +
             daiPoolToken) / 10 ** 18;
 
-        uint256 targetUSDT = (totalBalance * usdtTargetPercentage) / 100;
-        uint256 targetUSDC = (totalBalance * usdcTargetPercentage) / 100;
-        uint256 targetDAI = (totalBalance * daiTargetPercentage) / 100;
+        uint256 targetUSDT = (totalBalance * targetPercentage.usdt) / 100;
+        uint256 targetUSDC = (totalBalance * targetPercentage.usdc) / 100;
+        uint256 targetDAI = (totalBalance * targetPercentage.dai) / 100;
 
         if (getMaxDeviation) {
             return getMaxDeviationAddress(targetUSDT, targetUSDC, targetDAI);
@@ -236,9 +186,9 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 targetUSDC,
         uint256 targetDAI
     ) internal view returns (address) {
-        int256 deviationA = int256(usdtTargetPercentage) - int256(targetUSDT);
-        int256 deviationB = int256(usdcTargetPercentage) - int256(targetUSDC);
-        int256 deviationC = int256(daiTargetPercentage) - int256(targetDAI);
+        int256 deviationA = int256(targetPercentage.usdt) - int256(targetUSDT);
+        int256 deviationB = int256(targetPercentage.usdc) - int256(targetUSDC);
+        int256 deviationC = int256(targetPercentage.dai) - int256(targetDAI);
 
         if (deviationA >= deviationB && deviationA >= deviationC) {
             return USDT;
@@ -254,9 +204,9 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 targetUSDC,
         uint256 targetDAI
     ) internal view returns (address) {
-        int256 deviationA = int256(usdtTargetPercentage) - int256(targetUSDT);
-        int256 deviationB = int256(usdcTargetPercentage) - int256(targetUSDC);
-        int256 deviationC = int256(daiTargetPercentage) - int256(targetDAI);
+        int256 deviationA = int256(targetPercentage.usdt) - int256(targetUSDT);
+        int256 deviationB = int256(targetPercentage.usdc) - int256(targetUSDC);
+        int256 deviationC = int256(targetPercentage.dai) - int256(targetDAI);
 
         if (deviationA <= deviationB && deviationA <= deviationC) {
             return USDT;
@@ -313,11 +263,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         StableType typeStable
     ) internal view returns (address) {
         if (typeStable == StableType.DAI) {
-            return daiRebalancerPool;
+            return rebalancerPools.daiPool;
         } else if (typeStable == StableType.USDT) {
-            return usdtRebalancerPool;
+            return rebalancerPools.usdtPool;
         } else if (typeStable == StableType.USDC) {
-            return usdcRebalancerPool;
+            return rebalancerPools.usdcPool;
         } else {
             revert InvalidPoolType();
         }
@@ -327,11 +277,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         address stableAddress
     ) internal view returns (address) {
         if (stableAddress == DAI) {
-            return daiRebalancerPool;
+            return rebalancerPools.daiPool;
         } else if (stableAddress == USDT) {
-            return usdtRebalancerPool;
+            return rebalancerPools.usdtPool;
         } else if (stableAddress == USDC) {
-            return usdcRebalancerPool;
+            return rebalancerPools.usdcPool;
         } else {
             revert InvalidPoolAddress();
         }
@@ -354,9 +304,17 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             uint256 daiBalance
         ) = getAllBalances();
 
-        rebalanceTokenPool(usdtBalance, usdtPoolToken, usdtRebalancerPool);
-        rebalanceTokenPool(usdcBalance, usdcPoolToken, usdcRebalancerPool);
-        rebalanceTokenPool(daiBalance, daiPoolToken, daiRebalancerPool);
+        rebalanceTokenPool(
+            usdtBalance,
+            usdtPoolToken,
+            rebalancerPools.usdtPool
+        );
+        rebalanceTokenPool(
+            usdcBalance,
+            usdcPoolToken,
+            rebalancerPools.usdcPool
+        );
+        rebalanceTokenPool(daiBalance, daiPoolToken, rebalancerPools.daiPool);
     }
 
     // пока только ребалансирует активы между пулом и контрактом,

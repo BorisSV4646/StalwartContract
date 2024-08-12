@@ -20,10 +20,10 @@ contract SwapUniswap {
         USDC
     }
 
-    address public immutable DAI;
-    address public immutable USDT;
-    address public immutable USDC;
-    address public immutable WETH;
+    address public immutable DAI = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
+    address public immutable USDT = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
+    address public immutable USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    address public immutable WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
 
     error NoAvalibleFee();
     error InvalidAddress();
@@ -31,28 +31,11 @@ contract SwapUniswap {
     constructor(
         ISwapRouter _swapRouter,
         IQuoterV2 _quoterv2,
-        IUniswapV3Factory _uniswapV3Factory,
-        address _dai,
-        address _usdt,
-        address _usdc,
-        address _weth
+        IUniswapV3Factory _uniswapV3Factory
     ) {
-        if (
-            _dai == address(0) ||
-            _usdt == address(0) ||
-            _usdc == address(0) ||
-            _weth == address(0)
-        ) {
-            revert InvalidAddress();
-        }
-
         swapRouter = _swapRouter;
         quoterV2 = _quoterv2;
         uniswapV3Factory = _uniswapV3Factory;
-        DAI = _dai;
-        USDT = _usdt;
-        USDC = _usdc;
-        WETH = _weth;
     }
 
     function getAmountOutMinimum(

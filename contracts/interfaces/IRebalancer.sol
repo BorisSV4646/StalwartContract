@@ -24,4 +24,6 @@ interface IRebalancer {
     ) external view returns (uint256 shares);
 
     function balanceOf(address account) external view returns (uint256);
+
+    function decimals() external view returns (uint8);
 }

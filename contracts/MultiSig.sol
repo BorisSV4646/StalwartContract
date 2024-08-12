@@ -29,6 +29,18 @@ contract MultiSigStalwart {
     error AddressNotFound(address owner);
     error InvalidAddressOwner(address owner);
 
+    constructor(address[] memory _owners, uint _requiredSignatures) {
+        if (_owners.length == 0) {
+            revert OwnersRequire(_owners.length);
+        }
+        if (_requiredSignatures < 2 && _requiredSignatures > _owners.length) {
+            revert InvalidNumberSignatures(_requiredSignatures, _owners.length);
+        }
+
+        owners = _owners;
+        requiredSignatures = _requiredSignatures;
+    }
+
     modifier onlyOwner() {
         if (!isOwner(msg.sender)) {
             revert NotAnOwner(msg.sender);

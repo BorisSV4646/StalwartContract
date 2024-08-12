@@ -13,6 +13,7 @@
     "hardhat": "^2.22.7"
   },
   "dependencies": {
+    "@aave/core-v3": "^1.19.3",
     "@nomicfoundation/hardhat-ignition": "^0.15.5",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^5.0.2",
