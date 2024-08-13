@@ -3,21 +3,18 @@ pragma solidity ^0.8.26;
 
 import "hardhat/console.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SwapUniswap, ISwapRouter, IQuoterV2, IUniswapV3Factory, TransferHelper} from "./SwapUniswap.sol";
+import {SwapUniswap, TransferHelper} from "./SwapUniswap.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {StalwartLiquidity} from "./StalwartLiquidity.sol";
 import {Errors} from "./libraries/Errors.sol";
+import {Addresses} from "./libraries/Addresses.sol";
 
 contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     constructor(
         address[] memory _owners,
-        uint256 _requiredSignatures,
-        ISwapRouter _swapRouter,
-        IQuoterV2 _quoterv2,
-        IUniswapV3Factory _uniswapV3Factory
+        uint256 _requiredSignatures
     )
         ERC20("Stalwart", "STL")
-        SwapUniswap(_swapRouter, _quoterv2, _uniswapV3Factory)
         StalwartLiquidity(_owners, _requiredSignatures)
     {}
 
@@ -69,10 +66,14 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
 
     function buyStalwartForEth() external payable {
         uint256 amount = msg.value;
-        IWETH(WETH).deposit{value: amount}();
+        IWETH(Addresses.WETH_ARB).deposit{value: amount}();
 
         address needStable = checkStableBalance(false);
-        uint256 swapAmount = swapExactInputSingle(amount, WETH, needStable);
+        uint256 swapAmount = swapExactInputSingle(
+            amount,
+            Addresses.WETH_ARB,
+            needStable
+        );
 
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(needStable);
@@ -116,9 +117,9 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         view
         returns (uint256 usdtBalance, uint256 usdcBalance, uint256 daiBalance)
     {
-        usdtBalance = IERC20(USDT).balanceOf(address(this));
-        usdcBalance = IERC20(USDC).balanceOf(address(this));
-        daiBalance = IERC20(DAI).balanceOf(address(this));
+        usdtBalance = IERC20(Addresses.USDT_ARB).balanceOf(address(this));
+        usdcBalance = IERC20(Addresses.USDC_ARB).balanceOf(address(this));
+        daiBalance = IERC20(Addresses.DAI_ARB).balanceOf(address(this));
         return (usdtBalance, usdcBalance, daiBalance);
     }
 
@@ -176,11 +177,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         int256 deviationC = int256(targetPercentage.dai) - int256(targetDAI);
 
         if (deviationA >= deviationB && deviationA >= deviationC) {
-            return USDT;
+            return Addresses.USDT_ARB;
         } else if (deviationB >= deviationA && deviationB >= deviationC) {
-            return USDC;
+            return Addresses.USDC_ARB;
         } else {
-            return DAI;
+            return Addresses.DAI_ARB;
         }
     }
 
@@ -194,11 +195,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         int256 deviationC = int256(targetPercentage.dai) - int256(targetDAI);
 
         if (deviationA <= deviationB && deviationA <= deviationC) {
-            return USDT;
+            return Addresses.USDT_ARB;
         } else if (deviationB <= deviationA && deviationB <= deviationC) {
-            return USDC;
+            return Addresses.USDC_ARB;
         } else {
-            return DAI;
+            return Addresses.DAI_ARB;
         }
     }
 
@@ -232,13 +233,13 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
 
     function getStableAddress(
         StableType typeStable
-    ) internal view returns (address) {
+    ) internal pure returns (address) {
         if (typeStable == StableType.DAI) {
-            return DAI;
+            return Addresses.DAI_ARB;
         } else if (typeStable == StableType.USDT) {
-            return USDT;
+            return Addresses.USDT_ARB;
         } else if (typeStable == StableType.USDC) {
-            return USDC;
+            return Addresses.USDC_ARB;
         } else {
             revert Errors.InvalidStableType();
         }
@@ -261,11 +262,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     function getPoolAddress(
         address stableAddress
     ) internal view returns (address) {
-        if (stableAddress == DAI) {
+        if (stableAddress == Addresses.DAI_ARB) {
             return rebalancerPools.daiPool;
-        } else if (stableAddress == USDT) {
+        } else if (stableAddress == Addresses.USDT_ARB) {
             return rebalancerPools.usdtPool;
-        } else if (stableAddress == USDC) {
+        } else if (stableAddress == Addresses.USDC_ARB) {
             return rebalancerPools.usdcPool;
         } else {
             revert Errors.InvalidPoolAddress();
@@ -305,19 +306,19 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             usdtBalance,
             usdtPoolToken,
             rebalancerPools.usdtPool,
-            USDT
+            Addresses.USDT_ARB
         );
         rebalanceTokenPool(
             usdcBalance,
             usdcPoolToken,
             rebalancerPools.usdcPool,
-            USDC
+            Addresses.USDC_ARB
         );
         rebalanceTokenPool(
             daiBalance,
             daiPoolToken,
             rebalancerPools.daiPool,
-            DAI
+            Addresses.DAI_ARB
         );
     }
 

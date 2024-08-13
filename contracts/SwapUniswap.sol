@@ -5,35 +5,16 @@ pragma abicoder v2;
 import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IQuoterV2} from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
-import {IUniswapV3Factory, IUniswapV3Pool} from "./interfaces/IUniswapPool.sol";
 import {Errors} from "./libraries/Errors.sol";
+import {Addresses} from "./libraries/Addresses.sol";
 
 contract SwapUniswap {
-    ISwapRouter public immutable swapRouter;
-    IQuoterV2 public immutable quoterV2;
-    IUniswapV3Factory public immutable uniswapV3Factory;
-
     uint24[] public feeTiers = [500, 3000, 10000];
 
     enum StableType {
         DAI,
         USDT,
         USDC
-    }
-
-    address public immutable DAI = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
-    address public immutable USDT = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
-    address public immutable USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-    address public immutable WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-
-    constructor(
-        ISwapRouter _swapRouter,
-        IQuoterV2 _quoterv2,
-        IUniswapV3Factory _uniswapV3Factory
-    ) {
-        swapRouter = _swapRouter;
-        quoterV2 = _quoterv2;
-        uniswapV3Factory = _uniswapV3Factory;
     }
 
     function getAmountOutMinimum(
@@ -51,7 +32,8 @@ contract SwapUniswap {
                 sqrtPriceLimitX96: 0
             });
 
-        (amountOutMinimum, sqrtPriceX96After, , ) = quoterV2
+        (amountOutMinimum, sqrtPriceX96After, , ) = Addresses
+            .QUOTERV2
             .quoteExactInputSingle(params);
     }
 
@@ -74,7 +56,11 @@ contract SwapUniswap {
             amountIn
         );
 
-        TransferHelper.safeApprove(token, address(swapRouter), amountIn);
+        TransferHelper.safeApprove(
+            token,
+            address(Addresses.SWAP_ROUTER),
+            amountIn
+        );
 
         (
             uint256 amountOutMinimum,
@@ -93,7 +79,7 @@ contract SwapUniswap {
                 sqrtPriceLimitX96: sqrtPriceX96After
             });
 
-        amountOut = swapRouter.exactInputSingle(params);
+        amountOut = Addresses.SWAP_ROUTER.exactInputSingle(params);
     }
 
     /// @notice swapInputMultiplePools swaps a fixed amount of DAI for a maximum possible amount of WETH9 through an intermediary pool.
@@ -115,18 +101,28 @@ contract SwapUniswap {
             amountIn
         );
 
-        TransferHelper.safeApprove(token, address(swapRouter), amountIn);
+        TransferHelper.safeApprove(
+            token,
+            address(Addresses.SWAP_ROUTER),
+            amountIn
+        );
 
         ISwapRouter.ExactInputParams memory params = ISwapRouter
             .ExactInputParams({
-                path: abi.encodePacked(token, poolFee, USDC, poolFee, stable),
+                path: abi.encodePacked(
+                    token,
+                    poolFee,
+                    Addresses.USDC_ARB,
+                    poolFee,
+                    stable
+                ),
                 recipient: msg.sender,
                 deadline: block.timestamp,
                 amountIn: amountIn,
                 amountOutMinimum: 0
             });
 
-        amountOut = swapRouter.exactInput(params);
+        amountOut = Addresses.SWAP_ROUTER.exactInput(params);
     }
 
     function findAvailableFeeTiers(
@@ -137,7 +133,7 @@ contract SwapUniswap {
         uint256 count = 0;
 
         for (uint256 i = 0; i < feeTiers.length; i++) {
-            address pool = uniswapV3Factory.getPool(
+            address pool = Addresses.UNISWAP_V3_FACTORY.getPool(
                 tokenA,
                 tokenB,
                 feeTiers[i]

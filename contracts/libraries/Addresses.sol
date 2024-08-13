@@ -7,16 +7,16 @@ import {IUniswapV3Factory} from "../interfaces/IUniswapPool.sol";
 
 library Addresses {
     // AAVE
+    address public constant AAVE_POOL =
+        0x794a61358D6845594F94dc1DB02A252b5b4814aD;
+    address public constant AAVE_INCENTIVES =
+        0x929EC64c34a17401F460460D4B9390518E5B473e;
     address public constant AAVE_USDT =
         0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
     address public constant AAVE_USDC =
         0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address public constant AAVE_DAI =
         0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
-    address public constant AAVE_POOL =
-        0x794a61358D6845594F94dc1DB02A252b5b4814aD;
-    address public constant AAVE_INCENTIVES =
-        0x929EC64c34a17401F460460D4B9390518E5B473e;
 
     // REBALANCER
     address public constant REB_USDT_POOL =

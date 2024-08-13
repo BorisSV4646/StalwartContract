@@ -14,6 +14,8 @@ import {IPool} from "@aave/core-v3/contracts/interfaces/IPool.sol";
 import {IIncentives} from "./interfaces/IIncentives.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Errors} from "./libraries/Errors.sol";
+import {Addresses} from "./libraries/Addresses.sol";
+import {Percents} from "./libraries/Percents.sol";
 
 contract StalwartLiquidity is MultiSigStalwart {
     bool public sendLiquidity;
@@ -48,10 +50,10 @@ contract StalwartLiquidity is MultiSigStalwart {
         address[] memory _owners,
         uint256 _requiredSignatures
     ) MultiSigStalwart(_owners, _requiredSignatures) {
-        uint256 _percentLiquidity = 50;
-        uint256 _usdtPercentage = 70;
-        uint256 _usdcPercentage = 20;
-        uint256 _daiPercentage = 10;
+        uint256 _percentLiquidity = Percents.PERCENT_LIQUIDITY;
+        uint256 _usdtPercentage = Percents.USDT_PERCENT;
+        uint256 _usdcPercentage = Percents.USDC_PERCENT;
+        uint256 _daiPercentage = Percents.DAI_PERCENT;
 
         uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
         if (percents != 100) {
@@ -64,17 +66,17 @@ contract StalwartLiquidity is MultiSigStalwart {
         );
 
         rebalancerPools = RebalancerPools(
-            0xCF86c768E5b8bcc823aC1D825F56f37c533d32F9,
-            0x6eAFd6Ae0B766BAd90e9226627285685b2d702aB,
-            0x5A0F7b7Ea13eDee7AD76744c5A6b92163e51a99a
+            Addresses.REB_USDT_POOL,
+            Addresses.REB_USDC_POOL,
+            Addresses.REB_DAI_POOL
         );
 
         aavePools = AavePools(
-            0x794a61358D6845594F94dc1DB02A252b5b4814aD,
-            0x929EC64c34a17401F460460D4B9390518E5B473e,
-            0x6ab707Aca953eDAeFBc4fD23bA73294241490620,
-            0x724dc807b04555b71ed48a6896b6F41593b8C637,
-            0x82E64f49Ed5EC1bC6e43DAD4FC8Af9bb3A2312EE
+            Addresses.AAVE_POOL,
+            Addresses.AAVE_INCENTIVES,
+            Addresses.AAVE_USDT,
+            Addresses.AAVE_USDC,
+            Addresses.AAVE_DAI
         );
 
         if (_percentLiquidity > 100) {
@@ -234,9 +236,9 @@ contract StalwartLiquidity is MultiSigStalwart {
     function _claimAllRewardsAave() internal {
         address[] memory assets;
 
-        assets[0] = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
-        assets[1] = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-        assets[2] = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
+        assets[0] = Addresses.USDT_ARB;
+        assets[1] = Addresses.USDC_ARB;
+        assets[2] = Addresses.DAI_ARB;
 
         IIncentives(aavePools.incentives).claimAllRewards(
             assets,
