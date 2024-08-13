@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-// TODO: 1) разобраться с контрактами ребалансера
 // 2) сделать смену пулов на aave
-// 3) сделать ребалансировку
-// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 // 5) поменять где нужно на aave функции
 // 6) сделать обмен наград arb или вывод при клейме наград
+
+// 1) разобраться с контрактами ребалансера
+// 3) сделать ребалансировку
+// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 
 import {MultiSigStalwart} from "./MultiSig.sol";
 import {IRebalancer} from "./interfaces/IRebalancer.sol";
@@ -85,16 +86,12 @@ contract StalwartLiquidity is MultiSigStalwart {
         useAave = false;
     }
 
-    function _sendToPool(
-        address pool,
-        uint256 amount,
-        address stable
-    ) internal {
-        if (!useAave) {
-            IRebalancer(pool).deposit(amount, address(this));
-        } else {
-            IPool(aavePools.pool).supply(stable, amount, address(this), 0);
-        }
+    function _sendToPool(address pool, uint256 amount) internal {
+        IRebalancer(pool).deposit(amount, address(this));
+    }
+
+    function _sendToPoolAave(address stable, uint256 amount) internal {
+        IPool(aavePools.pool).supply(stable, amount, address(this), 0);
     }
 
     function _getFromPool(

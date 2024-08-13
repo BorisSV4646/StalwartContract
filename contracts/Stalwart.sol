@@ -41,12 +41,8 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(typeStable);
             uint256 amountLiquidity = (amount * percentLiquidity) / 100;
-            TransferHelper.safeApprove(
-                stableAddress,
-                poolAddress,
-                amountLiquidity
-            );
-            _sendToPool(poolAddress, amountLiquidity, stableAddress);
+
+            _sendToPools(stableAddress, poolAddress, amountLiquidity);
         }
 
         _mint(msg.sender, amount);
@@ -64,12 +60,8 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(needStable);
             uint256 amountLiquidity = (swapAmount * percentLiquidity) / 100;
-            TransferHelper.safeApprove(
-                needStable,
-                poolAddress,
-                amountLiquidity
-            );
-            _sendToPool(poolAddress, amountLiquidity, needStable);
+
+            _sendToPools(needStable, poolAddress, amountLiquidity);
         }
 
         _mint(msg.sender, swapAmount);
@@ -85,12 +77,8 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(needStable);
             uint256 amountLiquidity = (swapAmount * percentLiquidity) / 100;
-            TransferHelper.safeApprove(
-                needStable,
-                poolAddress,
-                amountLiquidity
-            );
-            _sendToPool(poolAddress, amountLiquidity, needStable);
+
+            _sendToPools(needStable, poolAddress, amountLiquidity);
         }
 
         _mint(msg.sender, swapAmount);
@@ -350,7 +338,21 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             _getFromPool(rebalancerPool, needAmount, needStable);
         } else {
             uint256 needAmount = tokenBalance - (totalBalance / 2);
-            _sendToPool(rebalancerPool, needAmount, needStable);
+            _sendToPools(needStable, rebalancerPool, needAmount);
+        }
+    }
+
+    function _sendToPools(
+        address needStable,
+        address rebalancerPool,
+        uint256 needAmount
+    ) internal {
+        if (!useAave) {
+            TransferHelper.safeApprove(needStable, rebalancerPool, needAmount);
+            _sendToPool(rebalancerPool, needAmount);
+        } else {
+            TransferHelper.safeApprove(needStable, aavePools.pool, needAmount);
+            _sendToPoolAave(needStable, needAmount);
         }
     }
 }
