@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-// 2) сделать смену пулов на aave
-// 5) поменять где нужно на aave функции
-// 6) сделать обмен наград arb или вывод при клейме наград
-
-// 1) разобраться с контрактами ребалансера
-// 3) сделать ребалансировку
-// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 
 import {MultiSigStalwart} from "./MultiSig.sol";
 import {IRebalancer} from "./interfaces/IRebalancer.sol";
 import {IPool} from "@aave/core-v3/contracts/interfaces/IPool.sol";
 import {IIncentives} from "./interfaces/IIncentives.sol";
+import {TransferHelper} from "./SwapUniswap.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Errors} from "./libraries/Errors.sol";
 import {Addresses} from "./libraries/Addresses.sol";
@@ -115,9 +109,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         }
     }
 
-    function checkBalancerTokenBalances(
-        bool isRebalancer
-    )
+    function checkBalancerTokenBalances()
         public
         view
         returns (
@@ -126,7 +118,7 @@ contract StalwartLiquidity is MultiSigStalwart {
             uint256 daiPoolToken
         )
     {
-        if (isRebalancer) {
+        if (!useAave) {
             usdtPoolToken = IRebalancer(rebalancerPools.usdtPool).balanceOf(
                 address(this)
             );
@@ -173,19 +165,18 @@ contract StalwartLiquidity is MultiSigStalwart {
         targetPercentage.dai = _daiPercentage;
     }
 
-    function getAllLiquidity(bool isRebalancer) external onlyOwner {
+    function getAllLiquidity() external onlyOwner {
         (
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
             uint256 daiPoolToken
-        ) = checkBalancerTokenBalances(isRebalancer);
+        ) = checkBalancerTokenBalances();
 
         bytes memory data = abi.encodeWithSignature(
-            "executeGetAllLiquidity(uint256,uint256,uint256,bool)",
+            "executeGetAllLiquidity(uint256,uint256,uint256)",
             usdtPoolToken,
             usdcPoolToken,
-            daiPoolToken,
-            isRebalancer
+            daiPoolToken
         );
         createTransaction(data);
     }
@@ -193,10 +184,9 @@ contract StalwartLiquidity is MultiSigStalwart {
     function executeGetAllLiquidity(
         uint256 usdtPoolTokens,
         uint256 usdcPoolTokens,
-        uint256 daiPoolTokens,
-        bool isRebalancer
+        uint256 daiPoolTokens
     ) internal {
-        if (isRebalancer) {
+        if (!useAave) {
             IRebalancer(rebalancerPools.usdtPool).withdraw(
                 usdtPoolTokens,
                 address(this),
@@ -216,17 +206,17 @@ contract StalwartLiquidity is MultiSigStalwart {
             _claimAllRewardsAave();
 
             IPool(aavePools.pool).withdraw(
-                aavePools.usdt,
+                Addresses.USDT_ARB,
                 usdtPoolTokens,
                 address(this)
             );
             IPool(aavePools.pool).withdraw(
-                aavePools.usdc,
+                Addresses.USDC_ARB,
                 usdcPoolTokens,
                 address(this)
             );
             IPool(aavePools.pool).withdraw(
-                aavePools.dai,
+                Addresses.DAI_ARB,
                 daiPoolTokens,
                 address(this)
             );
@@ -258,6 +248,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         sendLiquidity = newSendLiquidity;
     }
 
+    // work if useAave = false
     function changePoolsAddress(
         address _usdtRebalancerPool,
         address _usdcRebalancerPool,
@@ -273,6 +264,9 @@ contract StalwartLiquidity is MultiSigStalwart {
                 _usdcRebalancerPool,
                 _daiRebalancerPool
             );
+        }
+        if (useAave) {
+            revert Errors.ChangePool(useAave);
         }
 
         bytes memory data = abi.encodeWithSignature(
@@ -293,14 +287,9 @@ contract StalwartLiquidity is MultiSigStalwart {
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
             uint256 daiPoolToken
-        ) = checkBalancerTokenBalances(true);
+        ) = checkBalancerTokenBalances();
 
-        executeGetAllLiquidity(
-            usdtPoolToken,
-            usdcPoolToken,
-            daiPoolToken,
-            true
-        );
+        executeGetAllLiquidity(usdtPoolToken, usdcPoolToken, daiPoolToken);
 
         rebalancerPools.usdtPool = _usdtRebalancerPool;
         rebalancerPools.usdcPool = _usdcRebalancerPool;
@@ -339,6 +328,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         useAave = newUseAave;
     }
 
+    // work if useAave = true
     function changeAavePoolAndTokens(
         address _pool,
         address _incentives,
@@ -353,6 +343,9 @@ contract StalwartLiquidity is MultiSigStalwart {
             _dai == address(0)
         ) {
             revert Errors.InvalidPoolsAddress(_usdt, _usdc, _dai);
+        }
+        if (!useAave) {
+            revert Errors.ChangePool(useAave);
         }
 
         bytes memory data = abi.encodeWithSignature(
@@ -377,19 +370,50 @@ contract StalwartLiquidity is MultiSigStalwart {
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
             uint256 daiPoolToken
-        ) = checkBalancerTokenBalances(false);
+        ) = checkBalancerTokenBalances();
 
-        executeGetAllLiquidity(
-            usdtPoolToken,
-            usdcPoolToken,
-            daiPoolToken,
-            false
-        );
+        executeGetAllLiquidity(usdtPoolToken, usdcPoolToken, daiPoolToken);
 
         aavePools.pool = _pool;
         aavePools.incentives = _incentives;
         aavePools.usdt = _usdt;
         aavePools.usdc = _usdc;
         aavePools.dai = _dai;
+    }
+
+    function withdrawRewards(address rewards, address to) external onlyOwner {
+        isERC20(rewards);
+
+        if (to == address(0)) {
+            revert Errors.InvalidAddress();
+        }
+
+        bytes memory data = abi.encodeWithSignature(
+            "executeWithdrawRewards(address,address)",
+            rewards,
+            to
+        );
+        createTransaction(data);
+    }
+
+    function executeWithdrawRewards(address rewards, address to) internal {
+        IERC20 sellToken = IERC20(rewards);
+
+        uint256 balance = sellToken.balanceOf(address(this));
+        if (balance == 0) {
+            revert Errors.InsufficientBalance(balance, balance, msg.sender);
+        }
+
+        TransferHelper.safeTransferFrom(rewards, address(this), to, balance);
+    }
+
+    function isERC20(address _token) internal view {
+        (bool success, bytes memory data) = _token.staticcall(
+            abi.encodeWithSignature("totalSupply()")
+        );
+
+        if (success && data.length == 0) {
+            revert Errors.InvalidERC20Token(_token);
+        }
     }
 }

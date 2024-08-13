@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
+// 1) структурировать функции
+// 1) разобраться с контрактами ребалансера
+// 3) сделать ребалансировку
+// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 
-import "hardhat/console.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SwapUniswap, TransferHelper} from "./SwapUniswap.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
@@ -34,7 +37,6 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             amount
         );
 
-        // менять апрув надо при смене ааве
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(typeStable);
             uint256 amountLiquidity = (amount * percentLiquidity) / 100;
@@ -135,19 +137,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 usdtPoolToken;
         uint256 usdcPoolToken;
         uint256 daiPoolToken;
-        if (!useAave) {
-            (
-                usdtPoolToken,
-                usdcPoolToken,
-                daiPoolToken
-            ) = checkBalancerTokenBalances(true);
-        } else {
-            (
-                usdtPoolToken,
-                usdcPoolToken,
-                daiPoolToken
-            ) = checkBalancerTokenBalances(false);
-        }
+        (
+            usdtPoolToken,
+            usdcPoolToken,
+            daiPoolToken
+        ) = checkBalancerTokenBalances();
 
         uint256 totalBalance = (usdtBalance +
             usdcBalance +
@@ -221,16 +215,6 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         }
     }
 
-    function isERC20(address _token) internal view {
-        (bool success, bytes memory data) = _token.staticcall(
-            abi.encodeWithSignature("totalSupply()")
-        );
-
-        if (success && data.length == 0) {
-            revert Errors.InvalidERC20Token(_token);
-        }
-    }
-
     function getStableAddress(
         StableType typeStable
     ) internal pure returns (address) {
@@ -282,19 +266,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 usdtPoolToken;
         uint256 usdcPoolToken;
         uint256 daiPoolToken;
-        if (!useAave) {
-            (
-                usdtPoolToken,
-                usdcPoolToken,
-                daiPoolToken
-            ) = checkBalancerTokenBalances(true);
-        } else {
-            (
-                usdtPoolToken,
-                usdcPoolToken,
-                daiPoolToken
-            ) = checkBalancerTokenBalances(false);
-        }
+        (
+            usdtPoolToken,
+            usdcPoolToken,
+            daiPoolToken
+        ) = checkBalancerTokenBalances();
 
         (
             uint256 usdtBalance,

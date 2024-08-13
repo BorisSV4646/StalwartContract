@@ -6,6 +6,7 @@ pragma solidity ^0.8.26;
  * @notice Defines the custom errors used by the Stalwart protocol
  */
 library Errors {
+    // MAIN CONTRACT
     error InvalidStableType();
     error InvalidPoolType();
     error InvalidPoolAddress();
@@ -20,6 +21,8 @@ library Errors {
         address sender
     );
     error InvalidERC20Token(address token);
+
+    // LIQUIDITY
     error InsufficientStableBalance(uint256 stableBalance, uint256 amount);
     error InvalidPercentage(uint256 percents);
     error InvalidPercentLiquidity(uint256 newPercentLiquidity);
@@ -38,6 +41,9 @@ library Errors {
     error onlyMultiSigError(address sender);
     error AddressNotFound(address owner);
     error InvalidAddressOwner(address owner);
-    error NoAvalibleFee();
     error InvalidAddress();
+    error ChangePool(bool useAave);
+
+    // UNISWAP
+    error NoAvalibleFee();
 }
