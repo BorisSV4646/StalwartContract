@@ -5,9 +5,14 @@ pragma solidity ^0.8.26;
 // 3) сделать ребалансировку
 // 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 // 5) поменять где нужно на aave функции
+// 6) сделать обмен наград arb или вывод при клейме наград
 
 import {MultiSigStalwart} from "./MultiSig.sol";
 import {IRebalancer} from "./interfaces/IRebalancer.sol";
+import {IPool} from "@aave/core-v3/contracts/interfaces/IPool.sol";
+import {IIncentives} from "./interfaces/IIncentives.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 contract StalwartLiquidity is MultiSigStalwart {
     bool public sendLiquidity;
@@ -31,19 +36,12 @@ contract StalwartLiquidity is MultiSigStalwart {
 
     struct AavePools {
         address pool;
+        address incentives;
         address usdt;
         address usdc;
         address dai;
     }
     AavePools public aavePools;
-
-    error InvalidPercentage(uint256 percents);
-    error InvalidPercentLiquidity(uint256 newPercentLiquidity);
-    error InvalidPoolsAddress(
-        address usdtPool,
-        address usdcPool,
-        address daiPool
-    );
 
     constructor(
         address[] memory _owners,
@@ -56,7 +54,7 @@ contract StalwartLiquidity is MultiSigStalwart {
 
         uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
         if (percents != 100) {
-            revert InvalidPercentage(percents);
+            revert Errors.InvalidPercentage(percents);
         }
         targetPercentage = TargetPercentage(
             _usdtPercentage,
@@ -72,13 +70,14 @@ contract StalwartLiquidity is MultiSigStalwart {
 
         aavePools = AavePools(
             0x794a61358D6845594F94dc1DB02A252b5b4814aD,
+            0x929EC64c34a17401F460460D4B9390518E5B473e,
             0x6ab707Aca953eDAeFBc4fD23bA73294241490620,
             0x724dc807b04555b71ed48a6896b6F41593b8C637,
             0x82E64f49Ed5EC1bC6e43DAD4FC8Af9bb3A2312EE
         );
 
         if (_percentLiquidity > 100) {
-            revert InvalidPercentLiquidity(_percentLiquidity);
+            revert Errors.InvalidPercentLiquidity(_percentLiquidity);
         }
         percentLiquidity = _percentLiquidity;
 
@@ -86,15 +85,40 @@ contract StalwartLiquidity is MultiSigStalwart {
         useAave = false;
     }
 
-    function _sendToPool(address pool, uint256 amount) internal {
-        IRebalancer(pool).deposit(amount, address(this));
+    function _sendToPool(
+        address pool,
+        uint256 amount,
+        address stable
+    ) internal {
+        if (!useAave) {
+            IRebalancer(pool).deposit(amount, address(this));
+        } else {
+            IPool(aavePools.pool).supply(stable, amount, address(this), 0);
+        }
     }
 
-    function _getFromPool(address pool, uint256 amount) internal {
-        IRebalancer(pool).withdraw(amount, address(this), address(this));
+    function _getFromPool(
+        address pool,
+        uint256 amount,
+        address stable
+    ) internal {
+        if (!useAave) {
+            IRebalancer(pool).withdraw(amount, address(this), address(this));
+        } else {
+            address[] memory assets;
+            assets[0] = stable;
+
+            IIncentives(aavePools.incentives).claimAllRewards(
+                assets,
+                address(this)
+            );
+            IPool(aavePools.pool).withdraw(stable, amount, address(this));
+        }
     }
 
-    function checkBalancerTokenBalances()
+    function checkBalancerTokenBalances(
+        bool isRebalancer
+    )
         public
         view
         returns (
@@ -103,15 +127,21 @@ contract StalwartLiquidity is MultiSigStalwart {
             uint256 daiPoolToken
         )
     {
-        usdtPoolToken = IRebalancer(rebalancerPools.usdtPool).balanceOf(
-            address(this)
-        );
-        usdcPoolToken = IRebalancer(rebalancerPools.usdcPool).balanceOf(
-            address(this)
-        );
-        daiPoolToken = IRebalancer(rebalancerPools.daiPool).balanceOf(
-            address(this)
-        );
+        if (isRebalancer) {
+            usdtPoolToken = IRebalancer(rebalancerPools.usdtPool).balanceOf(
+                address(this)
+            );
+            usdcPoolToken = IRebalancer(rebalancerPools.usdcPool).balanceOf(
+                address(this)
+            );
+            daiPoolToken = IRebalancer(rebalancerPools.daiPool).balanceOf(
+                address(this)
+            );
+        } else {
+            usdtPoolToken = IERC20(aavePools.usdt).balanceOf(address(this));
+            usdcPoolToken = IERC20(aavePools.usdc).balanceOf(address(this));
+            daiPoolToken = IERC20(aavePools.dai).balanceOf(address(this));
+        }
     }
 
     function setTargetPercentage(
@@ -122,7 +152,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         uint256 percents = _usdtPercentage + _usdcPercentage + _daiPercentage;
 
         if (percents != 100) {
-            revert InvalidPercentage(percents);
+            revert Errors.InvalidPercentage(percents);
         }
 
         bytes memory data = abi.encodeWithSignature(
@@ -144,18 +174,19 @@ contract StalwartLiquidity is MultiSigStalwart {
         targetPercentage.dai = _daiPercentage;
     }
 
-    function getAllLiquidity() external onlyOwner {
+    function getAllLiquidity(bool isRebalancer) external onlyOwner {
         (
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
             uint256 daiPoolToken
-        ) = checkBalancerTokenBalances();
+        ) = checkBalancerTokenBalances(isRebalancer);
 
         bytes memory data = abi.encodeWithSignature(
-            "executeGetAllLiquidity(uint256,uint256,uint256)",
+            "executeGetAllLiquidity(uint256,uint256,uint256,bool)",
             usdtPoolToken,
             usdcPoolToken,
-            daiPoolToken
+            daiPoolToken,
+            isRebalancer
         );
         createTransaction(data);
     }
@@ -163,21 +194,55 @@ contract StalwartLiquidity is MultiSigStalwart {
     function executeGetAllLiquidity(
         uint256 usdtPoolTokens,
         uint256 usdcPoolTokens,
-        uint256 daiPoolTokens
+        uint256 daiPoolTokens,
+        bool isRebalancer
     ) internal {
-        IRebalancer(rebalancerPools.usdtPool).withdraw(
-            usdtPoolTokens,
-            address(this),
-            address(this)
-        );
-        IRebalancer(rebalancerPools.usdcPool).withdraw(
-            usdcPoolTokens,
-            address(this),
-            address(this)
-        );
-        IRebalancer(rebalancerPools.daiPool).withdraw(
-            daiPoolTokens,
-            address(this),
+        if (isRebalancer) {
+            IRebalancer(rebalancerPools.usdtPool).withdraw(
+                usdtPoolTokens,
+                address(this),
+                address(this)
+            );
+            IRebalancer(rebalancerPools.usdcPool).withdraw(
+                usdcPoolTokens,
+                address(this),
+                address(this)
+            );
+            IRebalancer(rebalancerPools.daiPool).withdraw(
+                daiPoolTokens,
+                address(this),
+                address(this)
+            );
+        } else {
+            _claimAllRewardsAave();
+
+            IPool(aavePools.pool).withdraw(
+                aavePools.usdt,
+                usdtPoolTokens,
+                address(this)
+            );
+            IPool(aavePools.pool).withdraw(
+                aavePools.usdc,
+                usdcPoolTokens,
+                address(this)
+            );
+            IPool(aavePools.pool).withdraw(
+                aavePools.dai,
+                daiPoolTokens,
+                address(this)
+            );
+        }
+    }
+
+    function _claimAllRewardsAave() internal {
+        address[] memory assets;
+
+        assets[0] = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
+        assets[1] = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        assets[2] = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
+
+        IIncentives(aavePools.incentives).claimAllRewards(
+            assets,
             address(this)
         );
     }
@@ -204,7 +269,7 @@ contract StalwartLiquidity is MultiSigStalwart {
             _usdcRebalancerPool == address(0) ||
             _daiRebalancerPool == address(0)
         ) {
-            revert InvalidPoolsAddress(
+            revert Errors.InvalidPoolsAddress(
                 _usdtRebalancerPool,
                 _usdcRebalancerPool,
                 _daiRebalancerPool
@@ -229,9 +294,14 @@ contract StalwartLiquidity is MultiSigStalwart {
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
             uint256 daiPoolToken
-        ) = checkBalancerTokenBalances();
+        ) = checkBalancerTokenBalances(true);
 
-        executeGetAllLiquidity(usdtPoolToken, usdcPoolToken, daiPoolToken);
+        executeGetAllLiquidity(
+            usdtPoolToken,
+            usdcPoolToken,
+            daiPoolToken,
+            true
+        );
 
         rebalancerPools.usdtPool = _usdtRebalancerPool;
         rebalancerPools.usdcPool = _usdcRebalancerPool;
@@ -242,7 +312,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         uint256 newPercentLiquidity
     ) external onlyOwner {
         if (newPercentLiquidity > 100 || newPercentLiquidity < 0) {
-            revert InvalidPercentLiquidity(newPercentLiquidity);
+            revert Errors.InvalidPercentLiquidity(newPercentLiquidity);
         }
 
         bytes memory data = abi.encodeWithSignature(
@@ -268,5 +338,59 @@ contract StalwartLiquidity is MultiSigStalwart {
 
     function executeChangeBalancerToAaae(bool newUseAave) internal {
         useAave = newUseAave;
+    }
+
+    function changeAavePoolAndTokens(
+        address _pool,
+        address _incentives,
+        address _usdt,
+        address _usdc,
+        address _dai
+    ) external onlyOwner {
+        if (
+            _pool == address(0) ||
+            _usdt == address(0) ||
+            _usdc == address(0) ||
+            _dai == address(0)
+        ) {
+            revert Errors.InvalidPoolsAddress(_usdt, _usdc, _dai);
+        }
+
+        bytes memory data = abi.encodeWithSignature(
+            "executeChangeAavePoolAndTokens(address,address,address,address,address)",
+            _pool,
+            _incentives,
+            _usdt,
+            _usdc,
+            _dai
+        );
+        createTransaction(data);
+    }
+
+    function executeChangeAavePoolAndTokens(
+        address _pool,
+        address _incentives,
+        address _usdt,
+        address _usdc,
+        address _dai
+    ) internal {
+        (
+            uint256 usdtPoolToken,
+            uint256 usdcPoolToken,
+            uint256 daiPoolToken
+        ) = checkBalancerTokenBalances(false);
+
+        executeGetAllLiquidity(
+            usdtPoolToken,
+            usdcPoolToken,
+            daiPoolToken,
+            false
+        );
+
+        aavePools.pool = _pool;
+        aavePools.incentives = _incentives;
+        aavePools.usdt = _usdt;
+        aavePools.usdc = _usdc;
+        aavePools.dai = _dai;
     }
 }

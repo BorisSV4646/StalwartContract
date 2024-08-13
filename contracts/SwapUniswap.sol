@@ -6,6 +6,7 @@ import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/Transfer
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IQuoterV2} from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
 import {IUniswapV3Factory, IUniswapV3Pool} from "./interfaces/IUniswapPool.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 contract SwapUniswap {
     ISwapRouter public immutable swapRouter;
@@ -24,9 +25,6 @@ contract SwapUniswap {
     address public immutable USDT = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
     address public immutable USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address public immutable WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-
-    error NoAvalibleFee();
-    error InvalidAddress();
 
     constructor(
         ISwapRouter _swapRouter,
@@ -166,7 +164,7 @@ contract SwapUniswap {
         );
 
         if (availableFeeTiers.length == 0) {
-            revert NoAvalibleFee();
+            revert Errors.NoAvalibleFee();
         }
 
         uint24 minFee = availableFeeTiers[0];

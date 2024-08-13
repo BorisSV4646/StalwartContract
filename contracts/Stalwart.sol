@@ -6,24 +6,9 @@ import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SwapUniswap, ISwapRouter, IQuoterV2, IUniswapV3Factory, TransferHelper} from "./SwapUniswap.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {StalwartLiquidity} from "./StalwartLiquidity.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
-    error InvalidStableType();
-    error InvalidPoolType();
-    error InvalidPoolAddress();
-    error InsufficientAllowance(
-        uint256 allowance,
-        uint256 amount,
-        address sender
-    );
-    error InsufficientBalance(
-        uint256 balance,
-        uint256 required,
-        address sender
-    );
-    error InvalidERC20Token(address token);
-    error InsufficientStableBalance(uint256 stableBalance, uint256 amount);
-
     constructor(
         address[] memory _owners,
         uint256 _requiredSignatures,
@@ -61,7 +46,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
                 poolAddress,
                 amountLiquidity
             );
-            _sendToPool(poolAddress, amountLiquidity);
+            _sendToPool(poolAddress, amountLiquidity, stableAddress);
         }
 
         _mint(msg.sender, amount);
@@ -84,7 +69,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
                 poolAddress,
                 amountLiquidity
             );
-            _sendToPool(poolAddress, amountLiquidity);
+            _sendToPool(poolAddress, amountLiquidity, needStable);
         }
 
         _mint(msg.sender, swapAmount);
@@ -105,7 +90,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
                 poolAddress,
                 amountLiquidity
             );
-            _sendToPool(poolAddress, amountLiquidity);
+            _sendToPool(poolAddress, amountLiquidity, needStable);
         }
 
         _mint(msg.sender, swapAmount);
@@ -123,7 +108,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
 
         if (stableBalance < amount) {
             address poolAddress = getPoolAddress(needStable);
-            _getFromPool(poolAddress, amount);
+            _getFromPool(poolAddress, amount, needStable);
         }
 
         TransferHelper.safeTransferFrom(
@@ -157,11 +142,23 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             uint256 usdcBalance,
             uint256 daiBalance
         ) = getAllBalances();
-        (
-            uint256 usdtPoolToken,
-            uint256 usdcPoolToken,
-            uint256 daiPoolToken
-        ) = checkBalancerTokenBalances();
+
+        uint256 usdtPoolToken;
+        uint256 usdcPoolToken;
+        uint256 daiPoolToken;
+        if (!useAave) {
+            (
+                usdtPoolToken,
+                usdcPoolToken,
+                daiPoolToken
+            ) = checkBalancerTokenBalances(true);
+        } else {
+            (
+                usdtPoolToken,
+                usdcPoolToken,
+                daiPoolToken
+            ) = checkBalancerTokenBalances(false);
+        }
 
         uint256 totalBalance = (usdtBalance +
             usdcBalance +
@@ -226,12 +223,12 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
 
         uint256 balance = sellToken.balanceOf(msg.sender);
         if (balance < amount) {
-            revert InsufficientBalance(balance, amount, msg.sender);
+            revert Errors.InsufficientBalance(balance, amount, msg.sender);
         }
 
         uint256 allowance = sellToken.allowance(owner, address(this));
         if (allowance < amount) {
-            revert InsufficientAllowance(allowance, amount, owner);
+            revert Errors.InsufficientAllowance(allowance, amount, owner);
         }
     }
 
@@ -241,7 +238,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         );
 
         if (success && data.length == 0) {
-            revert InvalidERC20Token(_token);
+            revert Errors.InvalidERC20Token(_token);
         }
     }
 
@@ -255,7 +252,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         } else if (typeStable == StableType.USDC) {
             return USDC;
         } else {
-            revert InvalidStableType();
+            revert Errors.InvalidStableType();
         }
     }
 
@@ -269,7 +266,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         } else if (typeStable == StableType.USDC) {
             return rebalancerPools.usdcPool;
         } else {
-            revert InvalidPoolType();
+            revert Errors.InvalidPoolType();
         }
     }
 
@@ -283,7 +280,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         } else if (stableAddress == USDC) {
             return rebalancerPools.usdcPool;
         } else {
-            revert InvalidPoolAddress();
+            revert Errors.InvalidPoolAddress();
         }
     }
 
@@ -293,11 +290,23 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     }
 
     function executeRebalancer() internal {
-        (
-            uint256 usdtPoolToken,
-            uint256 usdcPoolToken,
-            uint256 daiPoolToken
-        ) = checkBalancerTokenBalances();
+        uint256 usdtPoolToken;
+        uint256 usdcPoolToken;
+        uint256 daiPoolToken;
+        if (!useAave) {
+            (
+                usdtPoolToken,
+                usdcPoolToken,
+                daiPoolToken
+            ) = checkBalancerTokenBalances(true);
+        } else {
+            (
+                usdtPoolToken,
+                usdcPoolToken,
+                daiPoolToken
+            ) = checkBalancerTokenBalances(false);
+        }
+
         (
             uint256 usdtBalance,
             uint256 usdcBalance,
@@ -307,14 +316,21 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         rebalanceTokenPool(
             usdtBalance,
             usdtPoolToken,
-            rebalancerPools.usdtPool
+            rebalancerPools.usdtPool,
+            USDT
         );
         rebalanceTokenPool(
             usdcBalance,
             usdcPoolToken,
-            rebalancerPools.usdcPool
+            rebalancerPools.usdcPool,
+            USDC
         );
-        rebalanceTokenPool(daiBalance, daiPoolToken, rebalancerPools.daiPool);
+        rebalanceTokenPool(
+            daiBalance,
+            daiPoolToken,
+            rebalancerPools.daiPool,
+            DAI
+        );
     }
 
     // пока только ребалансирует активы между пулом и контрактом,
@@ -323,17 +339,18 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     function rebalanceTokenPool(
         uint256 tokenBalance,
         uint256 poolTokenBalance,
-        address rebalancerPool
+        address rebalancerPool,
+        address needStable
     ) internal {
         uint256 totalBalance = tokenBalance + poolTokenBalance;
         uint256 targetBalance = (totalBalance * percentLiquidity) / 100;
 
         if (targetBalance < percentLiquidity) {
             uint256 needAmount = poolTokenBalance - (totalBalance / 2);
-            _getFromPool(rebalancerPool, needAmount);
+            _getFromPool(rebalancerPool, needAmount, needStable);
         } else {
             uint256 needAmount = tokenBalance - (totalBalance / 2);
-            _sendToPool(rebalancerPool, needAmount);
+            _sendToPool(rebalancerPool, needAmount, needStable);
         }
     }
 }

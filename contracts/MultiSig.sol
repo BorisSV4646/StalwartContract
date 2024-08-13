@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {Errors} from "./libraries/Errors.sol";
+
 contract MultiSigStalwart {
     struct Transaction {
         bytes data;
@@ -18,23 +20,15 @@ contract MultiSigStalwart {
     event TransactionSigned(uint256 indexed transactionId, address by);
     event TransactionExecuted(uint256 indexed transactionId);
 
-    error OwnersRequire(uint ownersLenght);
-    error InvalidNumberSignatures(uint signatures, uint ownersLenght);
-    error NotAnOwner(address sender);
-    error NotTransaction(uint256 idTransaction);
-    error AlreadyExecuted(uint256 idTransaction);
-    error AlreadySigned(uint256 idTransactio);
-    error NotEnoughSignatures(uint256 idTransactio);
-    error onlyMultiSigError(address sender);
-    error AddressNotFound(address owner);
-    error InvalidAddressOwner(address owner);
-
     constructor(address[] memory _owners, uint _requiredSignatures) {
         if (_owners.length == 0) {
-            revert OwnersRequire(_owners.length);
+            revert Errors.OwnersRequire(_owners.length);
         }
         if (_requiredSignatures < 2 && _requiredSignatures > _owners.length) {
-            revert InvalidNumberSignatures(_requiredSignatures, _owners.length);
+            revert Errors.InvalidNumberSignatures(
+                _requiredSignatures,
+                _owners.length
+            );
         }
 
         owners = _owners;
@@ -43,7 +37,7 @@ contract MultiSigStalwart {
 
     modifier onlyOwner() {
         if (!isOwner(msg.sender)) {
-            revert NotAnOwner(msg.sender);
+            revert Errors.NotAnOwner(msg.sender);
         }
         _;
     }
@@ -63,19 +57,19 @@ contract MultiSigStalwart {
 
     function signTransaction(uint256 _transactionId) public {
         if (!isOwner(msg.sender)) {
-            revert NotAnOwner(msg.sender);
+            revert Errors.NotAnOwner(msg.sender);
         }
         if (_transactionId > transactionCount) {
-            revert NotTransaction(_transactionId);
+            revert Errors.NotTransaction(_transactionId);
         }
 
         Transaction storage transaction = transactions[_transactionId];
 
         if (transaction.executed) {
-            revert AlreadyExecuted(_transactionId);
+            revert Errors.AlreadyExecuted(_transactionId);
         }
         if (transaction.signatures[msg.sender]) {
-            revert AlreadySigned(_transactionId);
+            revert Errors.AlreadySigned(_transactionId);
         }
 
         transaction.signatures[msg.sender] = true;
@@ -92,10 +86,10 @@ contract MultiSigStalwart {
         Transaction storage transaction = transactions[_transactionId];
 
         if (transaction.executed) {
-            revert AlreadyExecuted(_transactionId);
+            revert Errors.AlreadyExecuted(_transactionId);
         }
         if (transaction.signatureCount <= requiredSignatures) {
-            revert NotEnoughSignatures(_transactionId);
+            revert Errors.NotEnoughSignatures(_transactionId);
         }
 
         transaction.executed = true;
@@ -117,7 +111,7 @@ contract MultiSigStalwart {
 
     function addAddressOwner(address owner, bool addNew) external onlyOwner {
         if (owner == address(0)) {
-            revert InvalidAddressOwner(owner);
+            revert Errors.InvalidAddressOwner(owner);
         }
 
         bytes memory data = abi.encodeWithSignature(
@@ -142,7 +136,7 @@ contract MultiSigStalwart {
             }
 
             if (indexToRemove == owners.length) {
-                revert AddressNotFound(owner);
+                revert Errors.AddressNotFound(owner);
             }
 
             for (uint i = indexToRemove; i < owners.length - 1; i++) {
@@ -159,7 +153,7 @@ contract MultiSigStalwart {
         if (
             newRequiredSignatures <= 2 || newRequiredSignatures > owners.length
         ) {
-            revert InvalidNumberSignatures(
+            revert Errors.InvalidNumberSignatures(
                 newRequiredSignatures,
                 owners.length
             );
