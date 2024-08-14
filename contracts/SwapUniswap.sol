@@ -82,49 +82,6 @@ contract SwapUniswap {
         amountOut = Addresses.SWAP_ROUTER.exactInputSingle(params);
     }
 
-    /// @notice swapInputMultiplePools swaps a fixed amount of DAI for a maximum possible amount of WETH9 through an intermediary pool.
-    /// For this example, we will swap DAI to USDC, then USDC to WETH9 to achieve our desired output.
-    /// @dev The calling address must approve this contract to spend at least `amountIn` worth of its DAI for this function to succeed.
-    /// @param amountIn The amount of DAI to be swapped.
-    /// @return amountOut The amount of WETH9 received after the swap.
-    function swapExactInputMultihop(
-        uint256 amountIn,
-        address token,
-        address stable
-    ) internal returns (uint256 amountOut) {
-        uint24 poolFee = findMinimumFeeTier(token, stable);
-
-        TransferHelper.safeTransferFrom(
-            token,
-            msg.sender,
-            address(this),
-            amountIn
-        );
-
-        TransferHelper.safeApprove(
-            token,
-            address(Addresses.SWAP_ROUTER),
-            amountIn
-        );
-
-        ISwapRouter.ExactInputParams memory params = ISwapRouter
-            .ExactInputParams({
-                path: abi.encodePacked(
-                    token,
-                    poolFee,
-                    Addresses.USDC_ARB,
-                    poolFee,
-                    stable
-                ),
-                recipient: msg.sender,
-                deadline: block.timestamp,
-                amountIn: amountIn,
-                amountOutMinimum: 0
-            });
-
-        amountOut = Addresses.SWAP_ROUTER.exactInput(params);
-    }
-
     function findAvailableFeeTiers(
         address tokenA,
         address tokenB

@@ -31,4 +31,11 @@ library Percents {
      * This constant defines the percentage of the liquidity that should be allocated to DAI.
      */
     uint256 public constant DAI_PERCENT = 10;
+
+    /**
+     * @dev Represents the scaling factor for tokens with 6 decimals.
+     * This constant is used to convert values between tokens with 6 decimals
+     * and tokens with 18 decimals by scaling the amount up or down by 10^12.
+     */
+    uint256 public constant SMALL_DECIMALS = 10 ** 12;
 }

@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 // 1) структурировать функции
 // 2) прописать комментарии
 // 2) добавить эмиты
 // 1) разобраться с контрактами ребалансера
-// 3) сделать ребалансировку
 
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SwapUniswap, TransferHelper} from "./SwapUniswap.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {StalwartLiquidity} from "./StalwartLiquidity.sol";
 import {Errors} from "./libraries/Errors.sol";
 import {Addresses} from "./libraries/Addresses.sol";
+import {Percents} from "./libraries/Percents.sol";
 
 contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
+    enum ScaleDirection {
+        Up,
+        Down
+    }
+
     constructor(
         address[] memory _owners,
         uint256 _requiredSignatures
@@ -24,24 +29,31 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     {}
 
     // need to get approve
+    // amount - stalwart need 10 ** 18
     function buyStalwartForStable(
         uint256 amount,
         StableType typeStable
     ) external {
         address stableAddress = getStableAddress(typeStable);
 
-        checkAllowanceAndBalance(msg.sender, stableAddress, amount);
+        uint256 adjustedAmount = getAdjustedAmount(
+            stableAddress,
+            amount,
+            ScaleDirection.Down
+        );
+
+        checkAllowanceAndBalance(msg.sender, stableAddress, adjustedAmount);
 
         TransferHelper.safeTransferFrom(
             stableAddress,
             msg.sender,
             address(this),
-            amount
+            adjustedAmount
         );
 
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(typeStable);
-            uint256 amountLiquidity = (amount * percentLiquidity) / 100;
+            uint256 amountLiquidity = (adjustedAmount * percentLiquidity) / 100;
 
             _sendToPools(stableAddress, poolAddress, amountLiquidity);
         }
@@ -52,11 +64,26 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     // need to get approve
     function buyStalwartForToken(uint256 amount, address token) external {
         isERC20(token);
-
-        checkAllowanceAndBalance(msg.sender, token, amount);
-
         address needStable = checkStableBalance(false);
-        uint256 swapAmount = swapExactInputSingle(amount, token, needStable);
+
+        uint256 adjustedAmount = getAdjustedAmount(
+            needStable,
+            amount,
+            ScaleDirection.Down
+        );
+        uint256 adjustedAmountSwap = getAdjustedAmount(
+            token,
+            amount,
+            ScaleDirection.Down
+        );
+
+        checkAllowanceAndBalance(msg.sender, token, adjustedAmount);
+
+        uint256 swapAmount = swapExactInputSingle(
+            adjustedAmountSwap,
+            token,
+            needStable
+        );
 
         if (sendLiquidity) {
             address poolAddress = getPoolAddress(needStable);
@@ -65,7 +92,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             _sendToPools(needStable, poolAddress, amountLiquidity);
         }
 
-        _mint(msg.sender, swapAmount);
+        _mint(msg.sender, amount);
     }
 
     function buyStalwartForEth() external payable {
@@ -86,29 +113,41 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             _sendToPools(needStable, poolAddress, amountLiquidity);
         }
 
-        _mint(msg.sender, swapAmount);
+        uint256 adjustedMint = getAdjustedAmount(
+            needStable,
+            swapAmount,
+            ScaleDirection.Up
+        );
+
+        _mint(msg.sender, adjustedMint);
     }
 
     function soldStalwart(uint256 amount) external {
+        address needStable = checkStableBalance(true);
+
         checkAllowanceAndBalance(msg.sender, address(this), amount);
 
         _burn(msg.sender, amount);
 
-        address needStable = checkStableBalance(true);
-
         IERC20 stableToken = IERC20(needStable);
         uint256 stableBalance = stableToken.balanceOf(address(this));
 
-        if (stableBalance < amount) {
+        uint256 adjustedAmount = getAdjustedAmount(
+            needStable,
+            amount,
+            ScaleDirection.Down
+        );
+
+        if (stableBalance < adjustedAmount) {
             address poolAddress = getPoolAddress(needStable);
-            _getFromPool(poolAddress, amount, needStable);
+            _getFromPool(poolAddress, adjustedAmount, needStable);
         }
 
         TransferHelper.safeTransferFrom(
             needStable,
             address(this),
             msg.sender,
-            amount
+            adjustedAmount
         );
     }
 
@@ -145,11 +184,15 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             daiPoolToken
         ) = checkBalancerTokenBalances();
 
-        uint256 totalBalance = (usdtBalance +
-            usdcBalance +
+        uint256 totalBalance = (usdtBalance *
+            Percents.SMALL_DECIMALS +
+            usdcBalance *
+            Percents.SMALL_DECIMALS +
             daiBalance +
-            usdtPoolToken +
-            usdcPoolToken +
+            usdtPoolToken *
+            Percents.SMALL_DECIMALS +
+            usdcPoolToken *
+            Percents.SMALL_DECIMALS +
             daiPoolToken) / 10 ** 18;
 
         uint256 targetUSDT = (totalBalance * targetPercentage.usdt) / 100;
@@ -205,13 +248,14 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 amount
     ) internal view {
         IERC20 sellToken = IERC20(tokenAddress);
-
         uint256 balance = sellToken.balanceOf(msg.sender);
+
         if (balance < amount) {
             revert Errors.InsufficientBalance(balance, amount, msg.sender);
         }
 
         uint256 allowance = sellToken.allowance(owner, address(this));
+
         if (allowance < amount) {
             revert Errors.InsufficientAllowance(allowance, amount, owner);
         }
@@ -332,6 +376,30 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         } else {
             TransferHelper.safeApprove(needStable, aavePools.pool, needAmount);
             _sendToPoolAave(needStable, needAmount);
+        }
+    }
+
+    function getAdjustedAmount(
+        address stableAddress,
+        uint256 amount,
+        ScaleDirection direction
+    ) internal view returns (uint256) {
+        uint8 decimals = IERC20Metadata(stableAddress).decimals();
+
+        if (decimals == 18) {
+            return amount;
+        } else if (decimals == 6) {
+            return
+                direction == ScaleDirection.Up
+                    ? amount * 10 ** 12
+                    : amount / 10 ** 12;
+        } else if (decimals == 8) {
+            return
+                direction == ScaleDirection.Up
+                    ? amount * 10 ** 10
+                    : amount / 10 ** 10;
+        } else {
+            revert Errors.UnsupportedDecimals(decimals);
         }
     }
 }

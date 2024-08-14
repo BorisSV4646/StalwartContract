@@ -9,6 +9,12 @@ library Errors {
     // MAIN CONTRACT
 
     /**
+     * @dev Error thrown when the token's decimals are not supported.
+     * @param decimals The number of decimals of the token that is not supported.
+     */
+    error UnsupportedDecimals(uint256 decimals);
+
+    /**
      * @dev Error indicating that an invalid stable type was provided.
      */
     error InvalidStableType();
