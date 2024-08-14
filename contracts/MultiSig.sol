@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Errors} from "./libraries/Errors.sol";
+import {Events} from "./libraries/Events.sol";
 
 contract MultiSigStalwart {
     struct Transaction {
@@ -15,10 +16,6 @@ contract MultiSigStalwart {
     uint256 public requiredSignatures;
     uint256 public transactionCount;
     mapping(uint256 => Transaction) public transactions;
-
-    event TransactionCreated(uint256 indexed transactionId, bytes data);
-    event TransactionSigned(uint256 indexed transactionId, address by);
-    event TransactionExecuted(uint256 indexed transactionId);
 
     /**
      * @dev Initializes the contract with the list of owners and the number of required signatures.
@@ -70,7 +67,7 @@ contract MultiSigStalwart {
         newTransaction.signatureCount = 0;
         transactionCount += 1;
 
-        emit TransactionCreated(transactionId, _data);
+        emit Events.TransactionCreated(transactionId, _data);
     }
 
     /**
@@ -102,7 +99,7 @@ contract MultiSigStalwart {
         transaction.signatures[msg.sender] = true;
         transaction.signatureCount += 1;
 
-        emit TransactionSigned(_transactionId, msg.sender);
+        emit Events.TransactionSigned(_transactionId, msg.sender);
 
         if (transaction.signatureCount >= requiredSignatures) {
             executeTransaction(_transactionId);
@@ -132,7 +129,7 @@ contract MultiSigStalwart {
         (bool success, ) = address(this).call(transaction.data);
         require(success, "Transaction execution failed");
 
-        emit TransactionExecuted(_transactionId);
+        emit Events.TransactionExecuted(_transactionId);
     }
 
     /**
