@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
+// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 // 1) структурировать функции
+// 2) прописать комментарии
+// 2) добавить эмиты
 // 1) разобраться с контрактами ребалансера
 // 3) сделать ребалансировку
-// 4) добавить нули, так как usdt и usdc с 6 нулями, а не с 18
 
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SwapUniswap, TransferHelper} from "./SwapUniswap.sol";
