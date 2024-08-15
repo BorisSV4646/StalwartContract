@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 pragma abicoder v2;
 
+import "hardhat/console.sol";
 import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IQuoterV2} from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
@@ -36,12 +37,14 @@ contract SwapUniswap {
     ) internal returns (uint256 amountOut) {
         uint24 poolFee = _findMinimumFeeTier(token, stable);
 
-        TransferHelper.safeTransferFrom(
-            token,
-            msg.sender,
-            address(this),
-            amountIn
-        );
+        if (token != Addresses.WETH_ARB) {
+            TransferHelper.safeTransferFrom(
+                token,
+                msg.sender,
+                address(this),
+                amountIn
+            );
+        }
 
         TransferHelper.safeApprove(
             token,
@@ -59,7 +62,7 @@ contract SwapUniswap {
                 tokenIn: token,
                 tokenOut: stable,
                 fee: poolFee,
-                recipient: msg.sender,
+                recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: amountIn,
                 amountOutMinimum: amountOutMinimum,

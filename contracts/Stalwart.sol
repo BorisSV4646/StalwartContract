@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import "hardhat/console.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SwapUniswap, TransferHelper} from "./SwapUniswap.sol";
@@ -30,6 +31,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     {}
 
     /**
+     * @notice Need to approve transfer token to stalwart contract first from user.
      * @notice Allows a user to buy Stalwart tokens using a stablecoin.
      * @param amount The amount of Stalwart tokens to purchase (scaled to 18 decimals).
      * @param typeStable The type of stablecoin used for the purchase (DAI, USDT, or USDC).
@@ -46,7 +48,12 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             ScaleDirection.Down
         );
 
-        _checkAllowanceAndBalance(msg.sender, stableAddress, adjustedAmount);
+        _checkAllowanceAndBalance(
+            msg.sender,
+            stableAddress,
+            adjustedAmount,
+            true
+        );
 
         TransferHelper.safeTransferFrom(
             stableAddress,
@@ -68,6 +75,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     }
 
     /**
+     * @notice Need to approve transfer token to stalwart contract first from user.
      * @notice Allows a user to buy Stalwart tokens using any ERC20 token.
      * @param amount The amount of Stalwart tokens to purchase (scaled to 18 decimals).
      * @param token The address of the ERC20 token used for the purchase.
@@ -87,7 +95,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             ScaleDirection.Down
         );
 
-        _checkAllowanceAndBalance(msg.sender, token, adjustedAmount);
+        _checkAllowanceAndBalance(msg.sender, token, adjustedAmount, true);
 
         uint256 swapAmount = swapExactInputSingle(
             adjustedAmountSwap,
@@ -102,7 +110,13 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             _sendToPools(needStable, poolAddress, amountLiquidity);
         }
 
-        _mint(msg.sender, amount);
+        uint256 adjustedAmountMint = _getAdjustedAmount(
+            needStable,
+            swapAmount,
+            ScaleDirection.Up
+        );
+
+        _mint(msg.sender, adjustedAmountMint);
 
         emit Events.BuyStalwartForToken(msg.sender, amount, token, swapAmount);
     }
@@ -146,7 +160,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     function soldStalwart(uint256 amount) external {
         address needStable = _checkStableBalance(true);
 
-        _checkAllowanceAndBalance(msg.sender, address(this), amount);
+        _checkAllowanceAndBalance(msg.sender, address(this), amount, false);
 
         _burn(msg.sender, amount);
 
@@ -164,12 +178,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             getFromPool(poolAddress, adjustedAmount, needStable);
         }
 
-        TransferHelper.safeTransferFrom(
-            needStable,
-            address(this),
-            msg.sender,
-            adjustedAmount
-        );
+        TransferHelper.safeTransfer(needStable, msg.sender, adjustedAmount);
 
         emit Events.SellStalwart(msg.sender, amount, needStable);
     }
@@ -252,20 +261,21 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             daiPoolToken
         ) = checkBalancerTokenBalances();
 
-        uint256 totalBalance = (usdtBalance *
-            Percents.SMALL_DECIMALS +
-            usdcBalance *
-            Percents.SMALL_DECIMALS +
-            daiBalance +
-            usdtPoolToken *
-            Percents.SMALL_DECIMALS +
-            usdcPoolToken *
-            Percents.SMALL_DECIMALS +
-            daiPoolToken) / 10 ** 18;
+        uint256 allUsdtBalance = (usdtBalance + usdtPoolToken) *
+            Percents.SMALL_DECIMALS;
+        uint256 allUsdcBalance = (usdcBalance + usdcPoolToken) *
+            Percents.SMALL_DECIMALS;
+        uint256 allDaiBalance = daiBalance + daiPoolToken;
 
-        uint256 targetUSDT = (totalBalance * targetPercentage.usdt) / 100;
-        uint256 targetUSDC = (totalBalance * targetPercentage.usdc) / 100;
-        uint256 targetDAI = (totalBalance * targetPercentage.dai) / 100;
+        uint256 totalBalance = allUsdtBalance + allUsdcBalance + allDaiBalance;
+
+        if (totalBalance == 0) {
+            return Addresses.USDT_ARB;
+        }
+
+        uint256 targetUSDT = (allUsdtBalance / totalBalance) * 100;
+        uint256 targetUSDC = (allUsdcBalance / totalBalance) * 100;
+        uint256 targetDAI = (allDaiBalance / totalBalance) * 100;
 
         if (getMaxDeviation) {
             return _getMaxDeviationAddress(targetUSDT, targetUSDC, targetDAI);
@@ -285,14 +295,10 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 targetUSDT,
         uint256 targetUSDC,
         uint256 targetDAI
-    ) internal view returns (address) {
-        int256 deviationA = int256(targetPercentage.usdt) - int256(targetUSDT);
-        int256 deviationB = int256(targetPercentage.usdc) - int256(targetUSDC);
-        int256 deviationC = int256(targetPercentage.dai) - int256(targetDAI);
-
-        if (deviationA >= deviationB && deviationA >= deviationC) {
+    ) internal pure returns (address) {
+        if (targetUSDT >= targetUSDC && targetUSDT >= targetDAI) {
             return Addresses.USDT_ARB;
-        } else if (deviationB >= deviationA && deviationB >= deviationC) {
+        } else if (targetUSDC >= targetUSDT && targetUSDC >= targetDAI) {
             return Addresses.USDC_ARB;
         } else {
             return Addresses.DAI_ARB;
@@ -310,14 +316,10 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         uint256 targetUSDT,
         uint256 targetUSDC,
         uint256 targetDAI
-    ) internal view returns (address) {
-        int256 deviationA = int256(targetPercentage.usdt) - int256(targetUSDT);
-        int256 deviationB = int256(targetPercentage.usdc) - int256(targetUSDC);
-        int256 deviationC = int256(targetPercentage.dai) - int256(targetDAI);
-
-        if (deviationA <= deviationB && deviationA <= deviationC) {
+    ) internal pure returns (address) {
+        if (targetUSDT <= targetUSDC && targetUSDT <= targetDAI) {
             return Addresses.USDT_ARB;
-        } else if (deviationB <= deviationA && deviationB <= deviationC) {
+        } else if (targetUSDC <= targetUSDT && targetUSDC <= targetDAI) {
             return Addresses.USDC_ARB;
         } else {
             return Addresses.DAI_ARB;
@@ -325,15 +327,17 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     }
 
     /**
-     * @dev Checks the allowance and balance of a specific token for a specific owner.
-     * @param owner The address of the token owner.
+     * @dev Checks the balance and optionally the allowance of a specific token for a specific owner.
+     * @param owner The address of the token owner (used if checkAllowance is true).
      * @param tokenAddress The address of the token.
      * @param amount The amount to check.
+     * @param checkAllowance A boolean indicating whether to check the allowance in addition to the balance.
      */
     function _checkAllowanceAndBalance(
         address owner,
         address tokenAddress,
-        uint256 amount
+        uint256 amount,
+        bool checkAllowance
     ) internal view {
         IERC20 sellToken = IERC20(tokenAddress);
         uint256 balance = sellToken.balanceOf(msg.sender);
@@ -342,10 +346,11 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
             revert Errors.InsufficientBalance(balance, amount, msg.sender);
         }
 
-        uint256 allowance = sellToken.allowance(owner, address(this));
-
-        if (allowance < amount) {
-            revert Errors.InsufficientAllowance(allowance, amount, owner);
+        if (checkAllowance) {
+            uint256 allowance = sellToken.allowance(owner, address(this));
+            if (allowance < amount) {
+                revert Errors.InsufficientAllowance(allowance, amount, owner);
+            }
         }
     }
 

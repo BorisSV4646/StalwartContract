@@ -9,7 +9,13 @@ dotenvConfig({ path: ".env" });
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   networks: {
-    hardhat: { chainId: 1337 },
+    hardhat: {
+      chainId: 1337,
+      forking: {
+        url: "https://arbitrum-mainnet.infura.io/v3/f8bf00d32b6448a3818f59c6f16e7f86",
+        blockNumber: 242825722,
+      },
+    },
     local: {
       url: "http://127.0.0.1:8545",
       timeout: 2000000,
