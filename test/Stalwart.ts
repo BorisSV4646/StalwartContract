@@ -18,8 +18,8 @@ describe("Stalwart", function () {
     const usdcRebalancer = "0x6eAFd6Ae0B766BAd90e9226627285685b2d702aB";
     const daiRebalancer = "0x5A0F7b7Ea13eDee7AD76744c5A6b92163e51a99a";
 
-    const owners = [otherAccount1, otherAccount2, otherAccount3];
-    const requireSignatures = 3;
+    const owners = [owner, otherAccount1, otherAccount2, otherAccount3];
+    const requireSignatures = 4;
 
     const Stalwart = await hre.ethers.getContractFactory("Stalwart");
     const stalwart = await Stalwart.deploy(owners, requireSignatures);
@@ -218,6 +218,32 @@ describe("Stalwart", function () {
         [owner, stalwartAddress],
         [-stalwartAfterSwap, 0]
       );
+    });
+  });
+
+  describe("Multisig work correct", function () {
+    it("changeBalancerToAave work correct", async function () {
+      const {
+        stalwart,
+        otherAccount1,
+        otherAccount2,
+        otherAccount3,
+        otherAccount4,
+      } = await loadFixture(deployOneYearLockFixture);
+
+      await stalwart.changeBalancerToAave(true);
+
+      await expect(stalwart.signTransaction(0)).to.be.reverted;
+
+      await stalwart.connect(otherAccount1).signTransaction(0);
+      await stalwart.connect(otherAccount2).signTransaction(0);
+
+      await expect(stalwart.executeChangeBalancerToAaae(true)).to.be.reverted;
+      const transaction = await stalwart
+        .connect(otherAccount3)
+        .signTransaction(0);
+
+      await expect(await stalwart.useAave()).to.be.true;
     });
   });
 });

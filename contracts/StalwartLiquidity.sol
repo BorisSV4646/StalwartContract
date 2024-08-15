@@ -398,7 +398,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         uint256 _usdtPercentage,
         uint256 _usdcPercentage,
         uint256 _daiPercentage
-    ) internal {
+    ) external onlyExecutable {
         targetPercentage.usdt = _usdtPercentage;
         targetPercentage.usdc = _usdcPercentage;
         targetPercentage.dai = _daiPercentage;
@@ -420,7 +420,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         uint256 usdtPoolTokens,
         uint256 usdcPoolTokens,
         uint256 daiPoolTokens
-    ) internal {
+    ) public onlyExecutable {
         if (!useAave) {
             IRebalancer(rebalancerPools.usdtPool).withdraw(
                 usdtPoolTokens,
@@ -462,7 +462,7 @@ contract StalwartLiquidity is MultiSigStalwart {
      * @notice Executes the change of the sendLiquidity flag.
      * @param newSendLiquidity The new status of the sendLiquidity flag.
      */
-    function executeChangeSendLiquidity(bool newSendLiquidity) internal {
+    function executeChangeSendLiquidity(bool newSendLiquidity) external onlyExecutable {
         sendLiquidity = newSendLiquidity;
     }
 
@@ -476,7 +476,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         address _usdtRebalancerPool,
         address _usdcRebalancerPool,
         address _daiRebalancerPool
-    ) internal {
+    ) external onlyExecutable {
         (
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
@@ -502,7 +502,7 @@ contract StalwartLiquidity is MultiSigStalwart {
      */
     function executeChangePercentLiquidity(
         uint256 newPercentLiquidity
-    ) internal {
+    ) external onlyExecutable {
         percentLiquidity = newPercentLiquidity;
 
         emit Events.LiquidityPercentageChanged(newPercentLiquidity);
@@ -512,7 +512,9 @@ contract StalwartLiquidity is MultiSigStalwart {
      * @notice Executes the change of the useAave flag.
      * @param newUseAave The new status of the useAave flag.
      */
-    function executeChangeBalancerToAaae(bool newUseAave) internal {
+    function executeChangeBalancerToAaae(
+        bool newUseAave
+    ) external onlyExecutable {
         useAave = newUseAave;
     }
 
@@ -530,7 +532,7 @@ contract StalwartLiquidity is MultiSigStalwart {
         address _usdt,
         address _usdc,
         address _dai
-    ) internal {
+    ) external onlyExecutable {
         (
             uint256 usdtPoolToken,
             uint256 usdcPoolToken,
@@ -553,7 +555,7 @@ contract StalwartLiquidity is MultiSigStalwart {
      * @param rewards The address of the reward token to withdraw.
      * @param to The address to receive the rewards.
      */
-    function executeWithdrawRewards(address rewards, address to) internal {
+    function executeWithdrawRewards(address rewards, address to) external onlyExecutable {
         IERC20 sellToken = IERC20(rewards);
 
         uint256 balance = sellToken.balanceOf(address(this));

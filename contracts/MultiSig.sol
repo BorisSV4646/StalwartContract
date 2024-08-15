@@ -51,6 +51,13 @@ contract MultiSigStalwart {
         _;
     }
 
+    modifier onlyExecutable() {
+        if (msg.sender != address(this)) {
+            revert Errors.OnlyWithMultisig(msg.sender);
+        }
+        _;
+    }
+
     /**
      * @dev Creates a new transaction.
      * @param _data The data to be executed by the transaction.
@@ -59,12 +66,13 @@ contract MultiSigStalwart {
      */
     function createTransaction(
         bytes memory _data
-    ) public returns (uint256 transactionId) {
+    ) internal returns (uint256 transactionId) {
         transactionId = transactionCount;
         Transaction storage newTransaction = transactions[transactionId];
         newTransaction.data = _data;
         newTransaction.executed = false;
-        newTransaction.signatureCount = 0;
+        newTransaction.signatures[msg.sender] = true;
+        newTransaction.signatureCount += 1;
         transactionCount += 1;
 
         emit Events.TransactionCreated(transactionId, _data);
@@ -79,10 +87,7 @@ contract MultiSigStalwart {
      * - The transaction must not have been already signed by the caller.
      * Emits a {TransactionSigned} event and, if executed, a {TransactionExecuted} event.
      */
-    function signTransaction(uint256 _transactionId) public {
-        if (!isOwner(msg.sender)) {
-            revert Errors.NotAnOwner(msg.sender);
-        }
+    function signTransaction(uint256 _transactionId) external onlyOwner {
         if (_transactionId >= transactionCount) {
             revert Errors.NotTransaction(_transactionId);
         }
@@ -188,7 +193,10 @@ contract MultiSigStalwart {
      * Requirements:
      * - This function should only be called internally by the contract.
      */
-    function executeAddAddressOwner(address owner, bool addNew) internal {
+    function executeAddAddressOwner(
+        address owner,
+        bool addNew
+    ) external onlyExecutable {
         if (addNew) {
             owners.push(owner);
         } else {
@@ -221,7 +229,7 @@ contract MultiSigStalwart {
      */
     function executeChangeRequiredSignatures(
         uint256 newRequiredSignatures
-    ) internal {
+    ) external onlyExecutable {
         requiredSignatures = newRequiredSignatures;
     }
 

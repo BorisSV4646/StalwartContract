@@ -445,7 +445,7 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
     /**
      * @dev Executes the rebalancing of token pools.
      */
-    function executeRebalancer() internal {
+    function executeRebalancer() external onlyExecutable {
         uint256 usdtPoolToken;
         uint256 usdcPoolToken;
         uint256 daiPoolToken;

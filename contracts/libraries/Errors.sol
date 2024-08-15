@@ -62,6 +62,14 @@ library Errors {
     // LIQUIDITY
 
     /**
+     * @dev Emitted when a function that requires execution through the multisig process is called.
+     * This event logs the address of the caller who attempted to execute the function directly.
+     *
+     * @param caller The address that attempted to call the function requiring multisig.
+     */
+    error OnlyWithMultisig(address caller);
+
+    /**
      * @dev Error indicating that the stable balance is insufficient for the transaction.
      * @param stableBalance The current stable balance.
      * @param amount The required amount.
