@@ -131,8 +131,19 @@ contract MultiSigStalwart {
 
         transaction.executed = true;
 
-        (bool success, ) = address(this).call(transaction.data);
-        require(success, "Transaction execution failed");
+        (bool success, bytes memory returndata) = address(this).call(
+            transaction.data
+        );
+        if (!success) {
+            if (returndata.length > 0) {
+                assembly {
+                    let returndata_size := mload(returndata)
+                    revert(add(32, returndata), returndata_size)
+                }
+            } else {
+                revert Errors.ExecutionFailed();
+            }
+        }
 
         emit Events.TransactionExecuted(_transactionId);
     }

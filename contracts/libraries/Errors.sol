@@ -120,6 +120,11 @@ library Errors {
     error NotAnOwner(address sender);
 
     /**
+     * @dev Error to send executed transaction.
+     */
+    error ExecutionFailed();
+
+    /**
      * @dev Error indicating that the transaction with the provided ID does not exist.
      * @param idTransaction The ID of the transaction.
      */

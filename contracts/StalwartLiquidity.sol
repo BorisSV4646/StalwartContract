@@ -110,13 +110,10 @@ contract StalwartLiquidity is MultiSigStalwart {
             IRebalancer(pool).withdraw(amount, address(this), address(this));
             emit Events.LiquidityWithdrawnFromPool(pool, amount);
         } else {
-            address[] memory assets;
-            assets[0] = stable;
+            if (stable == Addresses.USDC_ARB) {
+                _claimAllRewardsAave();
+            }
 
-            IIncentives(aavePools.incentives).claimAllRewards(
-                assets,
-                address(this)
-            );
             IPool(aavePools.pool).withdraw(stable, amount, address(this));
             emit Events.LiquidityWithdrawnFromAave(stable, amount);
         }
@@ -158,19 +155,13 @@ contract StalwartLiquidity is MultiSigStalwart {
         )
     {
         if (!useAave) {
-            usdtPoolToken = IRebalancer(rebalancerPools.usdtPool).balanceOf(
-                address(this)
-            );
-            usdcPoolToken = IRebalancer(rebalancerPools.usdcPool).balanceOf(
-                address(this)
-            );
-            daiPoolToken = IRebalancer(rebalancerPools.daiPool).balanceOf(
-                address(this)
-            );
+            usdtPoolToken = _getBalancerTokenBalance(rebalancerPools.usdtPool);
+            usdcPoolToken = _getBalancerTokenBalance(rebalancerPools.usdcPool);
+            daiPoolToken = _getBalancerTokenBalance(rebalancerPools.daiPool);
         } else {
-            usdtPoolToken = IERC20(aavePools.usdt).balanceOf(address(this));
-            usdcPoolToken = IERC20(aavePools.usdc).balanceOf(address(this));
-            daiPoolToken = IERC20(aavePools.dai).balanceOf(address(this));
+            usdtPoolToken = _getAaveTokenBalance(aavePools.usdt);
+            usdcPoolToken = _getAaveTokenBalance(aavePools.usdc);
+            daiPoolToken = _getAaveTokenBalance(aavePools.dai);
         }
     }
 
@@ -189,14 +180,48 @@ contract StalwartLiquidity is MultiSigStalwart {
     }
 
     /**
+     * @dev Retrieves the token balance in the Rebalancer pool.
+     * @param pool The address of the Rebalancer pool.
+     * @return Returns the amount of tokens that can be redeemed from the pool.
+     *
+     * @notice This function first gets the contract's token balance in the Rebalancer pool,
+     * then calculates the number of tokens that would be returned if this balance is redeemed,
+     * considering the current exchange rate.
+     */
+    function _getBalancerTokenBalance(
+        address pool
+    ) internal view returns (uint256) {
+        uint256 poolBalance = IRebalancer(pool).balanceOf(address(this));
+        return IRebalancer(pool).previewRedeem(poolBalance);
+    }
+
+    /**
+     * @dev Retrieves the real token balance from the aToken balance in Aave.
+     * @param token The address of the aToken in Aave.
+     * @return Returns the equivalent amount of tokens that corresponds to the current aToken balance.
+     *
+     * @notice This function calculates the current token balance considering the liquidity index,
+     * which reflects the accumulated interest on the deposited funds. The token balance grows
+     * proportionally to the liquidity index.
+     */
+    function _getAaveTokenBalance(
+        address token
+    ) internal view returns (uint256) {
+        uint256 tokenBalance = IERC20(token).balanceOf(address(this));
+        uint256 liquidityIndex = IPool(aavePools.pool)
+            .getReserveNormalizedIncome(token);
+        return (tokenBalance * liquidityIndex) / 10 ** 27;
+    }
+
+    /**
      * @notice Claims all rewards from Aave for a specified set of assets.
      */
     function _claimAllRewardsAave() internal {
-        address[] memory assets;
+        address[] memory assets = new address[](1);
 
-        assets[0] = Addresses.USDT_ARB;
-        assets[1] = Addresses.USDC_ARB;
-        assets[2] = Addresses.DAI_ARB;
+        assets[0] = Addresses.USDC_ARB;
+        // assets[1] = Addresses.USDT_ARB;
+        // assets[2] = Addresses.DAI_ARB;
 
         IIncentives(aavePools.incentives).claimAllRewards(
             assets,
@@ -462,7 +487,9 @@ contract StalwartLiquidity is MultiSigStalwart {
      * @notice Executes the change of the sendLiquidity flag.
      * @param newSendLiquidity The new status of the sendLiquidity flag.
      */
-    function executeChangeSendLiquidity(bool newSendLiquidity) external onlyExecutable {
+    function executeChangeSendLiquidity(
+        bool newSendLiquidity
+    ) external onlyExecutable {
         sendLiquidity = newSendLiquidity;
     }
 
@@ -555,7 +582,10 @@ contract StalwartLiquidity is MultiSigStalwart {
      * @param rewards The address of the reward token to withdraw.
      * @param to The address to receive the rewards.
      */
-    function executeWithdrawRewards(address rewards, address to) external onlyExecutable {
+    function executeWithdrawRewards(
+        address rewards,
+        address to
+    ) external onlyExecutable {
         IERC20 sellToken = IERC20(rewards);
 
         uint256 balance = sellToken.balanceOf(address(this));

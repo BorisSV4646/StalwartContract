@@ -175,7 +175,8 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
 
         if (stableBalance < adjustedAmount) {
             address poolAddress = _getPoolAddress(needStable);
-            getFromPool(poolAddress, adjustedAmount, needStable);
+            uint256 amountWithdraw = adjustedAmount - stableBalance;
+            getFromPool(poolAddress, amountWithdraw, needStable);
         }
 
         TransferHelper.safeTransfer(needStable, msg.sender, adjustedAmount);
@@ -495,10 +496,16 @@ contract Stalwart is StalwartLiquidity, SwapUniswap, ERC20 {
         address needStable
     ) internal {
         uint256 totalBalance = tokenBalance + poolTokenBalance;
-        uint256 targetBalance = (totalBalance * percentLiquidity) / 100;
+        if (totalBalance == 0) {
+            return;
+        }
+        uint256 targetBalance = (tokenBalance * 100) / totalBalance;
 
+        console.log(targetBalance, totalBalance);
         if (targetBalance < percentLiquidity) {
-            uint256 needAmount = poolTokenBalance - (totalBalance / 2);
+            uint256 needPercent = percentLiquidity - targetBalance;
+            uint256 needAmount = (totalBalance * needPercent) / 100;
+            console.log(needAmount);
             getFromPool(rebalancerPool, needAmount, needStable);
         } else {
             uint256 needAmount = tokenBalance - (totalBalance / 2);

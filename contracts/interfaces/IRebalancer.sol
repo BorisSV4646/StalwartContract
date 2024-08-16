@@ -23,6 +23,10 @@ interface IRebalancer {
         uint256 assets
     ) external view returns (uint256 shares);
 
+    function previewRedeem(
+        uint256 shares
+    ) external view returns (uint256 assets);
+
     function balanceOf(address account) external view returns (uint256);
 
     function decimals() external view returns (uint8);
